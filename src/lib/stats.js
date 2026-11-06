@@ -7,29 +7,49 @@ import {
   sortMatches,
 } from './scoring.js'
 
-/** Summary numbers for a set of completed player-round entries. */
+/**
+ * Summary numbers for a set of player-round entries. Every fairway score
+ * entered counts — including rounds still in progress — so statistics
+ * update as scores come in. The average is strokes per fairway × 12 (i.e.
+ * per round), which compares a part-played round fairly with a full one.
+ * Best and highest round need all 12 fairways.
+ */
 function summarise(entries) {
   const complete = entries.filter((e) => e.complete)
-  const totalStrokes = complete.reduce((s, e) => s + e.total, 0)
+  let fairwaysPlayed = 0
+  let totalStrokes = 0
+  const fairwaySums = Array(FAIRWAY_COUNT).fill(0)
+  const fairwayCounts = Array(FAIRWAY_COUNT).fill(0)
+  for (const e of entries) {
+    e.fairways.forEach((v, i) => {
+      if (v == null) return
+      fairwaySums[i] += v
+      fairwayCounts[i] += 1
+      fairwaysPlayed += 1
+      totalStrokes += v
+    })
+  }
   let best = null
   let worst = null
   for (const e of complete) {
     if (!best || e.total < best.total) best = e
     if (!worst || e.total > worst.total) worst = e
   }
-  const fairwaySums = Array(FAIRWAY_COUNT).fill(0)
-  for (const e of complete) e.fairways.forEach((v, i) => (fairwaySums[i] += v))
   return {
     matchesPlayed: new Set(entries.map((e) => e.matchId)).size,
+    roundsPlayed: entries.length,
     roundsCompleted: complete.length,
     incompleteRounds: entries.length - complete.length,
+    fairwaysPlayed,
     totalStrokes,
-    avgStrokes: complete.length ? totalStrokes / complete.length : null,
+    avgStrokes: fairwaysPlayed ? (totalStrokes / fairwaysPlayed) * FAIRWAY_COUNT : null,
     bestRound: best,
     worstRound: worst,
-    fairwayAverages: fairwaySums.map((s) => (complete.length ? s / complete.length : null)),
+    fairwayAverages: fairwaySums.map((s, i) => (fairwayCounts[i] ? s / fairwayCounts[i] : null)),
   }
 }
+
+const byNumber = (a, b) => (a === b ? 0 : a < b ? -1 : 1) // safe with Infinity
 
 /** Full statistics for one player within a date range. */
 export function playerStats(data, playerId, range = null) {
@@ -39,7 +59,8 @@ export function playerStats(data, playerId, range = null) {
 
 /**
  * Statistics for every player, ranked by average strokes (lower is better).
- * Players below the minimum number of completed rounds are left unranked.
+ * Players need at least the minimum number of rounds played (rounds in
+ * progress count) to be ranked; the rest are listed unranked.
  */
 export function allPlayerStats(data, range = null, { includeInactive = true } = {}) {
   const entries = collectEntries(matchesInRange(data.matches, range))
@@ -59,23 +80,24 @@ export function allPlayerStats(data, range = null, { includeInactive = true } = 
       ...summarise(byPlayer.get(p.id) || []),
     }))
 
+  const isRanked = (r) => r.fairwaysPlayed > 0 && r.roundsPlayed >= minRounds
   const ranked = rows
-    .filter((r) => r.roundsCompleted >= minRounds)
+    .filter(isRanked)
     .sort(
       (a, b) =>
-        a.avgStrokes - b.avgStrokes ||
-        b.roundsCompleted - a.roundsCompleted ||
-        a.bestRound.total - b.bestRound.total ||
+        byNumber(a.avgStrokes, b.avgStrokes) ||
+        b.fairwaysPlayed - a.fairwaysPlayed ||
+        byNumber(a.bestRound?.total ?? Infinity, b.bestRound?.total ?? Infinity) ||
         a.player.name.localeCompare(b.player.name),
     )
   let prev = null
   ranked.forEach((r, i) => {
-    const same = prev && Math.abs(prev.avgStrokes - r.avgStrokes) < 1e-9 && prev.roundsCompleted === r.roundsCompleted
+    const same = prev && Math.abs(prev.avgStrokes - r.avgStrokes) < 1e-9 && prev.fairwaysPlayed === r.fairwaysPlayed
     r.rank = same ? prev.rank : i + 1
     prev = r
   })
   const unranked = rows
-    .filter((r) => r.roundsCompleted < minRounds)
+    .filter((r) => !isRanked(r))
     .map((r) => ({ ...r, rank: null }))
     .sort((a, b) => a.player.name.localeCompare(b.player.name))
   return [...ranked, ...unranked]
@@ -134,24 +156,29 @@ export function teamSummary(data, range = null) {
 }
 
 /**
- * Average strokes per completed player round, per group, per session date —
- * the data behind the "performance over time" chart.
+ * Average strokes per round (per fairway × 12), per group, per session date,
+ * from every fairway entered — the data behind the "performance over time" chart.
  */
 export function groupTrend(data, range = null) {
-  const entries = collectEntries(matchesInRange(data.matches, range)).filter((e) => e.complete)
+  const entries = collectEntries(matchesInRange(data.matches, range))
   const byDate = new Map()
   for (const e of entries) {
     if (!byDate.has(e.date)) byDate.set(e.date, {})
     const day = byDate.get(e.date)
-    if (!day[e.groupId]) day[e.groupId] = { sum: 0, n: 0 }
-    day[e.groupId].sum += e.total
-    day[e.groupId].n += 1
+    if (!day[e.groupId]) day[e.groupId] = { strokes: 0, fairways: 0 }
+    for (const v of e.fairways) {
+      if (v == null) continue
+      day[e.groupId].strokes += v
+      day[e.groupId].fairways += 1
+    }
   }
   return [...byDate.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, groups]) => {
       const row = { date }
-      for (const [gid, { sum, n }] of Object.entries(groups)) row[gid] = round1(sum / n)
+      for (const [gid, { strokes, fairways }] of Object.entries(groups)) {
+        if (fairways) row[gid] = round1((strokes / fairways) * FAIRWAY_COUNT)
+      }
       return row
     })
 }

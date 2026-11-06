@@ -134,7 +134,7 @@ describe('CSV export', () => {
 
   it('produces player, group and team reports', () => {
     const { data, pa } = seedWithMatch()
-    expect(playerHistoryCSV(data, pa.id, null)).toContain('Average strokes per round,36')
+    expect(playerHistoryCSV(data, pa.id, null)).toContain('Average strokes per round (per fairway x 12),36')
     expect(groupPerformanceCSV(data, null)).toContain('1,Group A,1,1,0,0,3')
     expect(playerSummaryCSV(data, null).split('\r\n')[3]).toMatch(/^1,NANYONDO JANE,Group A/)
     expect(teamPerformanceCSV(data, null)).toContain('Completed player rounds,2')

@@ -66,11 +66,48 @@ describe('match outcomes and points', () => {
     expect(computeOutcome(m, { ...data.settings, outcomeMetric: 'total' }).results['grp-a']).toBe('L')
   })
 
-  it('is pending until every group has a completed round', () => {
+  it('gives a live result while a scorecard is unfinished, and a final one when complete', () => {
+    const { data, matchId, pb } = seedWithMatch({ a: 3, b: 4 })
+    const m = data.matches.find((x) => x.id === matchId)
+    A.setFairwayScore(data, matchId, m.rounds[0].id, pb.id, 5, null) // B now has 11 of 12 fairways
+    const live = computeOutcome(m, data.settings)
+    expect(live.status).toBe('live')
+    expect(live.results).toEqual({ 'grp-a': 'W', 'grp-b': 'L' })
+    A.setFairwayScore(data, matchId, m.rounds[0].id, pb.id, 5, 4)
+    expect(computeOutcome(m, data.settings).status).toBe('decided')
+  })
+
+  it('stays pending while live results are switched off, and while a group has no scores', () => {
     const { data, matchId, pb } = seedWithMatch()
     const m = data.matches.find((x) => x.id === matchId)
     A.setFairwayScore(data, matchId, m.rounds[0].id, pb.id, 5, null)
+    const off = computeOutcome(m, { ...data.settings, liveResults: false })
+    expect(off.status).toBe('pending')
+    expect(off.waitingForCompletion).toBe(true)
+    A.clearPlayerRound(data, matchId, m.rounds[0].id, pb.id)
     expect(computeOutcome(m, data.settings).status).toBe('pending')
+  })
+
+  it('compares groups per fairway, exactly, whatever the number of fairways played', () => {
+    const data = createSeedData()
+    const pa = data.players.find((p) => p.groupId === 'grp-a')
+    const pb = data.players.find((p) => p.groupId === 'grp-b')
+    const id = A.createMatch(data, {
+      date: '2026-03-01',
+      type: 'match',
+      groupIds: ['grp-a', 'grp-b'],
+      participants: [
+        { playerId: pa.id, groupId: 'grp-a' },
+        { playerId: pb.id, groupId: 'grp-b' },
+      ],
+    })
+    const m = data.matches.find((x) => x.id === id)
+    A.setPlayerRound(data, id, m.rounds[0].id, pa.id, [3, 4, 3, null, null, null, null, null, null, null, null, null]) // 10 over 3
+    A.setPlayerRound(data, id, m.rounds[0].id, pb.id, fw([4, 3, 3, 4, 3, 3, 4, 3, 3, 4, 3, 3])) // 40 over 12 → same pace
+    const o = computeOutcome(m, data.settings)
+    expect(o.results).toEqual({ 'grp-a': 'D', 'grp-b': 'D' })
+    expect(o.metrics['grp-a']).toMatchObject({ fairways: 3, totalStrokes: 10, inProgress: 1, playerRounds: 0 })
+    expect(o.metrics['grp-a'].avgStrokes).toBeCloseTo(40)
   })
 
   it('uses the manual result when the coach sets one', () => {
@@ -114,6 +151,38 @@ describe('leaderboard', () => {
 
     A.deleteMatch(data, id)
     expect(computeStandings(data).every((r) => r.points === 0)).toBe(true)
+  })
+
+  it('updates the standings live from the first fairways entered', () => {
+    const data = createSeedData()
+    const pa = data.players.find((p) => p.groupId === 'grp-a')
+    const pb = data.players.find((p) => p.groupId === 'grp-b')
+    const id = A.createMatch(data, {
+      date: '2026-03-01',
+      type: 'match',
+      groupIds: ['grp-a', 'grp-b'],
+      participants: [
+        { playerId: pa.id, groupId: 'grp-a' },
+        { playerId: pb.id, groupId: 'grp-b' },
+      ],
+    })
+    const r = data.matches[0].rounds[0].id
+    for (const [i, v] of [3, 3, 3].entries()) A.setFairwayScore(data, id, r, pa.id, i, v)
+    for (const [i, v] of [4, 4, 3].entries()) A.setFairwayScore(data, id, r, pb.id, i, v)
+    let s = computeStandings(data)
+    expect(s[0]).toMatchObject({ name: 'Group A', points: 3, played: 1, live: 1 })
+    expect(s[0].form).toEqual([{ result: 'W', live: true }])
+    expect(s[0].avgStrokes).toBe(36)
+
+    // B catches up on the next fairways: the live table changes with it
+    for (const [i, v] of [2, 2, 2].entries()) A.setFairwayScore(data, id, r, pb.id, i + 3, v)
+    for (const [i, v] of [4, 4, 4].entries()) A.setFairwayScore(data, id, r, pa.id, i + 3, v)
+    s = computeStandings(data)
+    expect(s[0]).toMatchObject({ name: 'Group B', points: 3, live: 1 })
+
+    // with live results switched off, no points until the scorecards are complete
+    data.settings.liveResults = false
+    expect(computeStandings(data).every((row) => row.points === 0)).toBe(true)
   })
 
   it('applies tie-breakers in the configured order', () => {

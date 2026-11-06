@@ -85,7 +85,7 @@ const activeDot = (color) => ({ r: 6, fill: color, stroke: SURFACE, strokeWidth:
 /** Average strokes per player round, one line per group, across session dates. */
 export function GroupTrendChart({ data, groups }) {
   const present = groups.filter((g) => data.some((row) => row[g.id] != null))
-  if (!data.length || !present.length) return <p className="muted small">No completed rounds in this period yet.</p>
+  if (!data.length || !present.length) return <p className="muted small">No scores entered in this period yet.</p>
   return (
     <>
       <Legend items={present.map((g) => ({ key: g.id, label: g.name, color: g.color }))} />
@@ -238,7 +238,7 @@ export function PlayerTrendChart({ history, color = NEUTRAL_SERIES }) {
 
 /** Average strokes on each of the 12 fairways. */
 export function FairwayChart({ averages, color = NEUTRAL_SERIES }) {
-  if (!averages.some((v) => v != null)) return <p className="muted small">No completed rounds in this period.</p>
+  if (!averages.some((v) => v != null)) return <p className="muted small">No scores entered in this period.</p>
   const rows = averages.map((v, i) => ({ fairway: `F${i + 1}`, avg: v == null ? null : Math.round(v * 10) / 10 }))
   return (
     <>
@@ -278,7 +278,7 @@ export function FairwayChart({ averages, color = NEUTRAL_SERIES }) {
 /** Average strokes per group (lower is better). */
 export function GroupAverageChart({ rows }) {
   const present = rows.filter((r) => r.avg != null)
-  if (!present.length) return <p className="muted small">No completed rounds in this period yet.</p>
+  if (!present.length) return <p className="muted small">No scores entered in this period yet.</p>
   return (
     <div className="chart-box">
       <ResponsiveContainer width="100%" height="100%">

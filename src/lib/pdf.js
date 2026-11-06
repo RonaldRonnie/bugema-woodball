@@ -4,7 +4,7 @@
 
 import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
-import { FAIRWAY_COUNT, POINTS, computeStandings, computeOutcome, matchesInRange, sortMatches } from './scoring.js'
+import { FAIRWAY_COUNT, POINTS, computeStandings, computeOutcome, hasResult, matchesInRange, sortMatches } from './scoring.js'
 import { playerStats, allPlayerStats, groupStats, teamSummary, formatAvg } from './stats.js'
 import { formatDate, formatDateTime } from './dates.js'
 import { slugify, rangeSlug } from './download.js'
@@ -275,7 +275,8 @@ async function imageDataURL(imageId, snapshotImages) {
 }
 
 const shortDate = (iso) => formatDate(iso).replace(/ \d{4}$/, '')
-const resultLabel = (o, gid) => (o.status === 'practice' ? 'Practice' : o.status === 'pending' ? 'Pending' : o.results[gid])
+const resultLabel = (o, gid) =>
+  o.status === 'practice' ? 'Practice' : o.status === 'pending' ? 'Pending' : o.status === 'live' ? `${o.results[gid]} (live)` : o.results[gid]
 
 // ---------------------------------------------------------------- reports
 
@@ -317,8 +318,8 @@ export async function playerReportPDF(data, playerId, range, { snapshotImages } 
 
   statBoxes(ctx, [
     { label: 'Matches played', value: s.matchesPlayed },
-    { label: 'Rounds completed', value: s.roundsCompleted, note: s.incompleteRounds ? `${s.incompleteRounds} incomplete` : '' },
-    { label: 'Total strokes', value: s.totalStrokes },
+    { label: 'Rounds completed', value: s.roundsCompleted, note: s.incompleteRounds ? `+${s.incompleteRounds} in progress` : '' },
+    { label: 'Total strokes', value: s.totalStrokes, note: `${s.fairwaysPlayed} fairways played` },
     { label: 'Average per round', value: formatAvg(s.avgStrokes), note: 'lower is better' },
     { label: 'Best round', value: s.bestRound?.total ?? '—', note: s.bestRound ? formatDate(s.bestRound.date) : '' },
     { label: 'Highest round', value: s.worstRound?.total ?? '—', note: s.worstRound ? formatDate(s.worstRound.date) : '' },
@@ -362,11 +363,11 @@ export async function groupReportPDF(data, groupId, range) {
   statBoxes(ctx, [
     { label: 'Rank', value: st?.rank ?? '–', note: `of ${data.groups.length} groups` },
     { label: 'Points', value: st?.points ?? 0, note: 'W 3 · D 1 · L 0' },
-    { label: 'Record (W-D-L)', value: `${st?.won ?? 0}-${st?.drawn ?? 0}-${st?.lost ?? 0}`, note: `${st?.played ?? 0} decided matches` },
+    { label: 'Record (W-D-L)', value: `${st?.won ?? 0}-${st?.drawn ?? 0}-${st?.lost ?? 0}`, note: st?.live ? `${st.played} matches · ${st.live} live` : `${st?.played ?? 0} matches` },
     { label: 'Active players', value: s.activeMembers },
-    { label: 'Player rounds', value: s.roundsCompleted, note: 'completed, all sessions' },
-    { label: 'Total strokes', value: s.totalStrokes },
-    { label: 'Average strokes', value: formatAvg(s.avgStrokes), note: 'per player round' },
+    { label: 'Completed rounds', value: s.roundsCompleted, note: s.incompleteRounds ? `+${s.incompleteRounds} in progress` : 'all sessions' },
+    { label: 'Total strokes', value: s.totalStrokes, note: `${s.fairwaysPlayed} fairways played` },
+    { label: 'Average strokes', value: formatAvg(s.avgStrokes), note: 'per round (per fairway × 12)' },
     { label: 'Best round', value: s.bestRound?.total ?? '—', note: s.bestRound ? playersById[s.bestRound.playerId]?.name : '' },
   ])
 
@@ -381,22 +382,22 @@ export async function groupReportPDF(data, groupId, range) {
 
   sectionTitle(ctx, 'Match log')
   table(ctx, {
-    head: ['Date', 'Match', 'Type', 'Player rounds', 'Avg strokes', 'Result', 'Points'],
+    head: ['Date', 'Match', 'Type', 'Fairways', 'Avg strokes', 'Result', 'Points'],
     body: s.matchLog.map(({ match, outcome, result, metrics }) => [
       formatDate(match.date),
       match.title || 'Match',
       match.type === 'practice' ? 'Practice' : 'Match',
-      metrics?.playerRounds ?? 0,
+      metrics?.fairways ?? 0,
       formatAvg(metrics?.avgStrokes),
       resultLabel(outcome, groupId),
-      outcome.status === 'decided' ? POINTS[result] : '',
+      hasResult(outcome) ? POINTS[result] : '',
     ]),
   })
 
-  sectionTitle(ctx, 'Player rankings', 'By average strokes per completed round')
+  sectionTitle(ctx, 'Player rankings', 'By average strokes per round — every fairway entered counts, scaled to 12 fairways')
   table(ctx, {
-    head: ['Rank', 'Player', 'Matches', 'Rounds', 'Total strokes', 'Avg', 'Best'],
-    body: s.playerRows.map((r) => [r.rank ?? '–', r.player.name, r.matchesPlayed, r.roundsCompleted, r.totalStrokes, formatAvg(r.avgStrokes), r.bestRound?.total ?? '—']),
+    head: ['Rank', 'Player', 'Matches', 'Fairways', 'Total strokes', 'Avg', 'Best'],
+    body: s.playerRows.map((r) => [r.rank ?? '–', r.player.name, r.matchesPlayed, r.fairwaysPlayed, r.totalStrokes, formatAvg(r.avgStrokes), r.bestRound?.total ?? '—']),
   })
 
   const rounds = s.matchLog
@@ -441,7 +442,13 @@ export async function teamReportPDF(data, range) {
     { label: 'Completed rounds', value: t.playerRounds, note: `team avg ${formatAvg(t.avgStrokes)} strokes` },
   ])
 
-  sectionTitle(ctx, 'Group standings', 'Win 3 · Draw 1 · Loss 0 · average strokes from competitive matches')
+  sectionTitle(
+    ctx,
+    'Group standings',
+    standings.some((s) => s.live)
+      ? 'Win 3 · Draw 1 · Loss 0 · includes matches still in progress (live), which can change'
+      : 'Win 3 · Draw 1 · Loss 0 · average strokes per round from competitive matches',
+  )
   table(ctx, {
     head: ['Rank', 'Group', 'P', 'W', 'D', 'L', 'Pts', 'Avg strokes'],
     body: standings.map((s) => [s.rank, s.name, s.played, s.won, s.drawn, s.lost, s.points, formatAvg(s.avgStrokes)]),
@@ -457,7 +464,7 @@ export async function teamReportPDF(data, range) {
   })
   const avgs = data.groups.map((g) => groupStats(data, g.id, range).avgStrokes)
   barChart(ctx, {
-    title: 'Average strokes per player round',
+    title: 'Average strokes per round',
     note: 'All sessions · lower is better',
     labels: data.groups.map((g) => g.name),
     values: avgs.map((v) => (v == null ? null : Math.round(v * 10) / 10)),
@@ -466,15 +473,15 @@ export async function teamReportPDF(data, range) {
     height: 42,
   })
 
-  sectionTitle(ctx, 'Player rankings', 'By average strokes per completed round (lower is better)')
+  sectionTitle(ctx, 'Player rankings', 'By average strokes per round — every fairway entered counts (lower is better)')
   table(ctx, {
-    head: ['Rank', 'Player', 'Group', 'Matches', 'Rounds', 'Total strokes', 'Avg', 'Best'],
+    head: ['Rank', 'Player', 'Group', 'Matches', 'Fairways', 'Total strokes', 'Avg', 'Best'],
     body: players.map((r) => [
       r.rank,
       r.player.name,
       groupsById[r.player.groupId]?.name || '—',
       r.matchesPlayed,
-      r.roundsCompleted,
+      r.fairwaysPlayed,
       r.totalStrokes,
       formatAvg(r.avgStrokes),
       r.bestRound?.total ?? '—',

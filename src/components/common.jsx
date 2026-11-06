@@ -50,22 +50,33 @@ export function GroupBadge({ group, link = false }) {
 
 const RESULT_LABEL = { W: 'Win', D: 'Draw', L: 'Loss' }
 
-export function ResultBadge({ result }) {
+/** W / D / L badge. `live` marks a provisional result of a match still in progress. */
+export function ResultBadge({ result, live = false }) {
   if (!result) return <span className="result result-pending" title="Result pending">…</span>
+  const label = `${RESULT_LABEL[result]}${live ? ', live — match in progress' : ''}`
   return (
-    <span className={`result result-${result}`} title={RESULT_LABEL[result]}>
+    <span className={`result result-${result}${live ? ' result-live' : ''}`} title={label}>
       {result}
-      <span className="sr-only"> ({RESULT_LABEL[result]})</span>
+      <span className="sr-only"> ({label})</span>
+    </span>
+  )
+}
+
+export function LiveTag() {
+  return (
+    <span className="tag tag-live" title="Match in progress — result can still change">
+      <span className="live-dot" aria-hidden="true" /> Live
     </span>
   )
 }
 
 export function FormStrip({ form }) {
   if (!form?.length) return <span className="muted small">—</span>
+  const items = form.map((f) => (typeof f === 'string' ? { result: f, live: false } : f))
   return (
-    <span className="form-strip" aria-label={`Recent form: ${form.map((r) => RESULT_LABEL[r]).join(', ')}`}>
-      {form.map((r, i) => (
-        <ResultBadge key={i} result={r} />
+    <span className="form-strip" aria-label={`Recent form: ${items.map((f) => RESULT_LABEL[f.result] + (f.live ? ' (live)' : '')).join(', ')}`}>
+      {items.map((f, i) => (
+        <ResultBadge key={i} result={f.result} live={f.live} />
       ))}
     </span>
   )

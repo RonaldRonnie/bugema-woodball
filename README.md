@@ -177,14 +177,15 @@ Use a password you don't use anywhere else. A longer passphrase is stronger.
 
 ## How scoring works
 
-- A round has 12 fairways. **Total strokes** is the sum of the 12 fairway scores, and fewer is better.
-- A round counts towards statistics only when all 12 fairways are entered. Partly entered rounds are kept, marked as incomplete and listed under *Needs attention* on the admin dashboard.
-- **Match result (automatic)**: the group with the lowest **average strokes per completed player round** wins, which is fair when groups field different numbers of players. Groups level on that measure draw. You can switch this to total strokes in Settings, or set any match's result manually.
+- A round has 12 fairways. **Total strokes** is the sum of the fairway scores, and fewer is better.
+- **Every fairway score counts as soon as it is entered.** Averages are worked out per fairway and shown per round (× 12), so a player three fairways into a round can be compared fairly with someone who has finished. *Best round* records need all 12 fairways.
+- **Live results**: while scorecards are still being filled in, a match shows a provisional result marked **Live**, and its points count in the standings straight away. The result becomes final when every started scorecard has all 12 fairways. To award points only for finished matches, switch off *Show live results* in Settings.
+- **Match result (automatic)**: the group with the fewest strokes per fairway (shown as average strokes per round) wins, which is fair when groups field different numbers of players. Groups level on that measure draw. You can switch this to total strokes in Settings, or set any match's result manually.
 - **Points**: Win 3 · Draw 1 · Loss 0. Strokes and points are separate measures.
 - **Tie-breakers** (Admin → Settings, reorderable): most wins, head-to-head record between the tied groups, lowest average strokes, fewest losses, best single round. Groups still level share a rank.
 - **Practice sessions** count towards stroke statistics but award no points.
 - A player's past scores stay with the group they played for, even after they move to another group.
-- **Player rankings** use average strokes per completed round, with a configurable minimum number of rounds.
+- **Player rankings** use average strokes per round across every fairway entered, with a configurable minimum number of rounds played.
 
 ---
 

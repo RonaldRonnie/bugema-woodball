@@ -85,7 +85,7 @@ export default function Players() {
                     <div className="list-end">
                       <div className="strong num">{formatAvg(s?.avgStrokes)}</div>
                       <div className="tiny muted">
-                        avg · {s?.roundsCompleted || 0} rd{s?.roundsCompleted === 1 ? '' : 's'}
+                        avg · {s?.roundsPlayed || 0} rd{s?.roundsPlayed === 1 ? '' : 's'}
                       </div>
                     </div>
                   </Link>

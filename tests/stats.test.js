@@ -44,12 +44,39 @@ describe('individual statistics', () => {
     expect(s.history).toHaveLength(2)
   })
 
-  it('excludes incomplete rounds from averages but reports them', () => {
+  it('counts rounds in progress in averages, per fairway scaled to 12', () => {
     const { data, p2 } = twoRoundMatch()
     const s = playerStats(data, p2.id)
     expect(s.roundsCompleted).toBe(1)
     expect(s.incompleteRounds).toBe(1)
-    expect(s.avgStrokes).toBe(36)
+    expect(s.fairwaysPlayed).toBe(13) // 12 + 1
+    expect(s.totalStrokes).toBe(41) // 36 + 5
+    expect(s.avgStrokes).toBeCloseTo((41 / 13) * 12)
+    expect(s.bestRound.total).toBe(36) // best round needs all 12 fairways
+    expect(s.fairwayAverages[0]).toBe(4) // (3 + 5) / 2
+  })
+
+  it('ranks players who have only part-played a round', () => {
+    const data = createSeedData()
+    const [a, b] = data.players.filter((p) => p.groupId === 'grp-a')
+    const id = A.createMatch(data, {
+      date: '2026-05-04',
+      type: 'practice',
+      groupIds: ['grp-a'],
+      participants: [
+        { playerId: a.id, groupId: 'grp-a' },
+        { playerId: b.id, groupId: 'grp-a' },
+      ],
+    })
+    const r = data.matches[0].rounds[0].id
+    for (const [i, v] of [4, 4, 4].entries()) A.setFairwayScore(data, id, r, a.id, i, v)
+    for (const [i, v] of [2, 3, 2].entries()) A.setFairwayScore(data, id, r, b.id, i, v)
+    const rows = allPlayerStats(data)
+    expect(rows[0]).toMatchObject({ rank: 1, fairwaysPlayed: 3, roundsCompleted: 0 })
+    expect(rows[0].player.id).toBe(b.id)
+    expect(rows[0].avgStrokes).toBeCloseTo(28)
+    expect(rows[1].player.id).toBe(a.id)
+    expect(rows[0].bestRound).toBeNull()
   })
 
   it('ranks players by average strokes and leaves non-playing players unranked', () => {
@@ -73,7 +100,7 @@ describe('individual statistics', () => {
   it('keeps a player’s past scores with the group they played for after a transfer', () => {
     const { data, p1 } = twoRoundMatch()
     A.updatePlayer(data, p1.id, { groupId: 'grp-c' })
-    expect(groupStats(data, 'grp-a').roundsCompleted).toBe(3) // p1 ×2 + p2 ×1
+    expect(groupStats(data, 'grp-a').roundsCompleted).toBe(3) // p1 ×2 + p2 ×1 (p2's second round is in progress)
     expect(groupStats(data, 'grp-c').roundsCompleted).toBe(0)
   })
 })
@@ -82,8 +109,9 @@ describe('group and team statistics', () => {
   it('derives group performance from player scores', () => {
     const { data } = twoRoundMatch()
     const g = groupStats(data, 'grp-a')
-    expect(g.totalStrokes).toBe(36 + 48 + 36)
-    expect(g.avgStrokes).toBe(40)
+    expect(g.totalStrokes).toBe(36 + 48 + 36 + 5) // includes the round in progress
+    expect(g.fairwaysPlayed).toBe(37)
+    expect(g.avgStrokes).toBeCloseTo((125 / 37) * 12)
     expect(g.standing.points).toBe(3)
     expect(g.matchLog[0].result).toBe('W')
   })
@@ -94,7 +122,7 @@ describe('group and team statistics', () => {
     expect(t.totalPlayers).toBe(45)
     expect(t.totalSessions).toBe(1)
     expect(t.playerRounds).toBe(4)
-    expect(groupTrend(data)).toEqual([{ date: '2026-05-04', 'grp-a': 40, 'grp-b': 60 }])
+    expect(groupTrend(data)).toEqual([{ date: '2026-05-04', 'grp-a': 40.5, 'grp-b': 60 }])
   })
 })
 

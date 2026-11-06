@@ -16,7 +16,14 @@ export default function About() {
           <h2>How scoring works</h2>
           <ul>
             <li>Every round has 12 fairways. A player’s total strokes for the round is the sum of the 12 fairway scores — fewer is better.</li>
-            <li>A round counts in statistics only when all 12 fairways are entered. Partly entered rounds are kept and marked as incomplete.</li>
+            <li>
+              Every fairway score counts as soon as it is entered. Averages are worked out per fairway and shown per round (× 12), so a player three
+              fairways into a round can be compared fairly with someone who has finished. Best-round records need all 12 fairways.
+            </li>
+            <li>
+              While scorecards are still being filled in, a match shows a <strong>live</strong> result and its points count in the standings straight away;
+              the result becomes final when every started scorecard has all 12 fairways. (This can be switched off in Settings.)
+            </li>
             <li>
               Competitive matches award league points: <strong>win 3</strong>, <strong>draw 1</strong>, <strong>loss 0</strong>. Strokes and points
               are separate measures.

@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom'
 import { useData, useLookups } from '../../state/DataContext.jsx'
 import { useConfirm } from '../../state/UIContext.jsx'
 import { useTitle } from '../../components/Layout.jsx'
-import { PageHeader, EmptyState, ResultBadge, MatchTypeTag } from '../../components/common.jsx'
+import { PageHeader, EmptyState, ResultBadge, MatchTypeTag, LiveTag } from '../../components/common.jsx'
 import DateRangeFilter, { useDateRange } from '../../components/DateRangeFilter.jsx'
 import Icon from '../../components/Icons.jsx'
 import { useMatchList } from '../Matches.jsx'
-import { computeOutcome, isRoundComplete } from '../../lib/scoring.js'
+import { computeOutcome, hasResult, isRoundComplete } from '../../lib/scoring.js'
 import { formatDate } from '../../lib/dates.js'
 
 function progress(match) {
@@ -73,12 +73,13 @@ export default function AdminMatches() {
                           <span className={p.done === p.expected && p.expected ? 'tag tag-ok' : 'tag tag-warn'}>
                             {p.done}/{p.expected} scorecards complete
                           </span>
-                          {o.status === 'decided' &&
+                          {o.status === 'live' && <LiveTag />}
+                          {hasResult(o) &&
                             m.groupIds.map((g) => (
                               <span key={g} className="row" style={{ gap: 4 }}>
                                 <span className="group-dot" style={{ background: groupsById[g]?.color }} aria-hidden="true" />
                                 <span className="sr-only">{groupsById[g]?.name}</span>
-                                <ResultBadge result={o.results[g]} />
+                                <ResultBadge result={o.results[g]} live={o.status === 'live'} />
                               </span>
                             ))}
                         </div>

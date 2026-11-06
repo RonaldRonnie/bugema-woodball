@@ -6,7 +6,7 @@ import { useTitle } from '../../components/Layout.jsx'
 import { PageHeader, EmptyState, ResultBadge, GroupBadge } from '../../components/common.jsx'
 import { PlayerAvatar } from '../../components/media.jsx'
 import Icon from '../../components/Icons.jsx'
-import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome } from '../../lib/scoring.js'
+import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome, hasResult } from '../../lib/scoring.js'
 import { formatDate } from '../../lib/dates.js'
 import { formatAvg } from '../../lib/stats.js'
 import { readPref, writePref } from '../../services/storage.js'
@@ -366,7 +366,7 @@ function TableEntry({ rows, round, max, onSave, groupsById }) {
         </table>
       </div>
       <p className="small muted" style={{ padding: '8px 16px', margin: 0 }}>
-        Type a score and the cursor moves on automatically. Enter = next cell · ↑ ↓ = move between players · * = incomplete round. Every
+        Type a score and the cursor moves on automatically. Enter = next cell · ↑ ↓ = move between players · * = round in progress. Every
         change is saved immediately.
       </p>
     </div>
@@ -541,13 +541,13 @@ export default function ScoreEntry() {
                 Round {round.number}: {doneCount}/{rows.length} score cards complete
               </span>
               <span className="row" style={{ gap: 6 }}>
-                {outcome.status === 'decided' ? (
+                {hasResult(outcome) ? (
                   <>
-                    <span className="muted">Current result:</span>
+                    <span className="muted">{outcome.status === 'live' ? 'Live result:' : 'Final result:'}</span>
                     {match.groupIds.map((g) => (
                       <span key={g} className="row" style={{ gap: 4 }}>
                         <span className="group-dot" style={{ background: groupsById[g]?.color }} aria-hidden="true" />
-                        {groupsById[g]?.name} <ResultBadge result={outcome.results[g]} />
+                        {groupsById[g]?.name} <ResultBadge result={outcome.results[g]} live={outcome.status === 'live'} />
                         <span className="muted">({formatAvg(outcome.metrics[g]?.avgStrokes)})</span>
                       </span>
                     ))}

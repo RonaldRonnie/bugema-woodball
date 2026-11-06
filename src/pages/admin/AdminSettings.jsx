@@ -146,6 +146,7 @@ function ScoringRules() {
   const s = data.settings
   const [form, setForm] = useState(() => ({
     outcomeMetric: s.outcomeMetric,
+    liveResults: s.liveResults !== false,
     tieBreakers: s.tieBreakers.map((t) => ({ ...t })),
     minRoundsForRanking: s.minRoundsForRanking,
     maxStrokesPerFairway: s.maxStrokesPerFairway,
@@ -181,6 +182,16 @@ function ScoringRules() {
         </div>
 
         <div className="field">
+          <span className="field-label">Matches in progress</span>
+          <label className="check">
+            <input type="checkbox" checked={form.liveResults} onChange={(e) => setForm({ ...form, liveResults: e.target.checked })} />
+            Show live results — count a match in the standings as soon as scores are entered, marked “live” until every scorecard has all 12
+            fairways
+          </label>
+          <span className="field-hint">When off, a match earns points only once every started scorecard is complete.</span>
+        </div>
+
+        <div className="field">
           <span className="field-label">Tie-breakers (applied in this order when points are level)</span>
           <ol className="tiebreak-list">
             {form.tieBreakers.map((t, i) => (
@@ -210,7 +221,7 @@ function ScoringRules() {
 
         <div className="form-grid">
           <div className="field">
-            <label htmlFor="sr-min">Minimum completed rounds to be ranked</label>
+            <label htmlFor="sr-min">Minimum rounds played to be ranked (rounds in progress count)</label>
             <input
               id="sr-min"
               className="input"

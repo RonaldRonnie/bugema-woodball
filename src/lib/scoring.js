@@ -70,36 +70,66 @@ export function collectEntries(matches) {
   return entries
 }
 
-/** Per-group stroke totals for one match, using completed rounds only. */
+/**
+ * Per-group figures for one match, using EVERY fairway score entered —
+ * including rounds still in progress — so results update as scores come in.
+ *
+ *   fairways      number of fairway scores entered
+ *   totalStrokes  sum of those scores
+ *   avgStrokes    average strokes per round, i.e. per fairway × 12, so a
+ *                 player 3 fairways in compares fairly with a finished round
+ *   playerRounds  completed rounds (all 12 fairways)
+ *   inProgress    started rounds with fewer than 12 fairways
+ */
 export function groupMatchMetrics(match) {
   const metrics = {}
-  for (const gid of match.groupIds) metrics[gid] = { playerRounds: 0, totalStrokes: 0, avgStrokes: null }
+  for (const gid of match.groupIds) {
+    metrics[gid] = { fairways: 0, totalStrokes: 0, playerRounds: 0, inProgress: 0, avgStrokes: null }
+  }
   for (const round of match.rounds) {
     for (const p of match.participants) {
       const f = round.scores?.[p.playerId]
-      if (!isRoundComplete(f) || !metrics[p.groupId]) continue
-      metrics[p.groupId].playerRounds += 1
-      metrics[p.groupId].totalStrokes += roundTotal(f)
+      const m = metrics[p.groupId]
+      const n = filledCount(f)
+      if (!m || n === 0) continue
+      m.fairways += n
+      m.totalStrokes += roundTotal(f)
+      if (n === FAIRWAY_COUNT) m.playerRounds += 1
+      else m.inProgress += 1
     }
   }
   for (const m of Object.values(metrics)) {
-    m.avgStrokes = m.playerRounds ? m.totalStrokes / m.playerRounds : null
+    m.avgStrokes = m.fairways ? (m.totalStrokes / m.fairways) * FAIRWAY_COUNT : null
   }
   return metrics
 }
 
 const RESULT_RANK = { W: 2, D: 1, L: 0 }
 
+/** Exact comparison of two groups' metrics (negative = `a` did better). No rounding errors. */
+function compareMetrics(a, b, useTotal) {
+  if (useTotal) return a.totalStrokes - b.totalStrokes
+  return a.totalStrokes * b.fairways - b.totalStrokes * a.fairways // strokes per fairway, cross-multiplied
+}
+
+/** True when the outcome carries a W/D/L result (final or live). */
+export function hasResult(outcome) {
+  return outcome.status === 'decided' || outcome.status === 'live'
+}
+
 /**
  * Decides a match result for each participating group.
  *
  * status: 'practice' — training session, no points
- *         'pending'  — not enough data (or manual result not yet chosen)
- *         'decided'  — results holds W / D / L for every group
+ *         'pending'  — a group has no scores yet (or manual result not chosen)
+ *         'live'     — provisional result while scorecards are still being
+ *                      filled in; it can change until they are complete
+ *         'decided'  — final: every started scorecard has all 12 fairways
  *
- * Automatic mode: the group with the lowest stroke measure wins (woodball is
- * scored like golf — fewer strokes is better). Groups tied for lowest draw;
- * all others lose.
+ * Automatic mode: the group with the fewest strokes per fairway (shown per
+ * round) wins — woodball is scored like golf. Groups level on that measure
+ * draw; all others lose. With settings.liveResults === false, matches in
+ * progress stay 'pending' until complete.
  */
 export function computeOutcome(match, settings = {}) {
   const metrics = groupMatchMetrics(match)
@@ -117,34 +147,31 @@ export function computeOutcome(match, settings = {}) {
   }
 
   const useTotal = settings.outcomeMetric === 'total'
-  const values = {}
-  for (const gid of match.groupIds) {
-    const m = metrics[gid]
-    if (!m.playerRounds) return { ...base, status: 'pending' }
-    values[gid] = useTotal ? m.totalStrokes : m.avgStrokes
-  }
-  const best = Math.min(...Object.values(values))
-  const leaders = match.groupIds.filter((gid) => values[gid] === best)
+  if (match.groupIds.some((gid) => !metrics[gid].fairways)) return { ...base, status: 'pending' }
+  const inProgress = match.groupIds.some((gid) => metrics[gid].inProgress > 0)
+  if (inProgress && settings.liveResults === false) return { ...base, status: 'pending', waitingForCompletion: true }
+
+  const best = match.groupIds.reduce((b, gid) => (compareMetrics(metrics[gid], metrics[b], useTotal) < 0 ? gid : b))
+  const leaders = match.groupIds.filter((gid) => compareMetrics(metrics[gid], metrics[best], useTotal) === 0)
   const results = {}
   for (const gid of match.groupIds) {
-    results[gid] = values[gid] !== best ? 'L' : leaders.length > 1 ? 'D' : 'W'
+    results[gid] = !leaders.includes(gid) ? 'L' : leaders.length > 1 ? 'D' : 'W'
   }
-  return { ...base, results, status: 'decided', compared: useTotal ? 'total' : 'average' }
+  return { ...base, results, status: inProgress ? 'live' : 'decided', compared: useTotal ? 'total' : 'average' }
 }
 
 /**
- * Compares two groups inside one decided match: 1 if `a` did better,
+ * Compares two groups inside one match with a result: 1 if `a` did better,
  * -1 if worse, 0 if level. Used for head-to-head tie-breaks.
  */
 function pairwise(outcome, a, b) {
   if (outcome.mode === 'manual') {
     return Math.sign(RESULT_RANK[outcome.results[a]] - RESULT_RANK[outcome.results[b]])
   }
-  const key = outcome.compared === 'total' ? 'totalStrokes' : 'avgStrokes'
-  const va = outcome.metrics[a]?.[key]
-  const vb = outcome.metrics[b]?.[key]
-  if (va == null || vb == null || va === vb) return 0
-  return va < vb ? 1 : -1
+  const ma = outcome.metrics[a]
+  const mb = outcome.metrics[b]
+  if (!ma?.fairways || !mb?.fairways) return 0
+  return -Math.sign(compareMetrics(ma, mb, outcome.compared === 'total'))
 }
 
 function emptyRow(group) {
@@ -157,11 +184,13 @@ function emptyRow(group) {
     drawn: 0,
     lost: 0,
     points: 0,
+    live: 0, // matches still in progress counted provisionally
     playerRounds: 0,
+    fairways: 0,
     totalStrokes: 0,
     avgStrokes: null,
     bestRound: null,
-    form: [],
+    form: [], // [{ result: 'W'|'D'|'L', live: boolean }]
   }
 }
 
@@ -231,7 +260,9 @@ function resolveBlocks(block, chain, index, decided) {
  * Builds the group leaderboard for matches within `range`.
  * Points (W 3 · D 1 · L 0) always rank first; the enabled tie-breakers from
  * settings are then applied in order. Groups still level share a rank.
- * Stroke figures here come from competitive matches only.
+ * Matches in progress count with their current (live) result, so the table
+ * updates as scores are entered. Stroke figures come from competitive
+ * matches only and include every fairway entered.
  */
 export function computeStandings(data, range = null) {
   const settings = data.settings || {}
@@ -240,21 +271,24 @@ export function computeStandings(data, range = null) {
 
   for (const match of sortMatches(matchesInRange(data.matches, range))) {
     const outcome = computeOutcome(match, settings)
-    if (outcome.status !== 'decided') continue
+    if (!hasResult(outcome)) continue
+    const live = outcome.status === 'live'
     decided.push({ match, outcome })
     for (const gid of match.groupIds) {
       const row = rows[gid]
       if (!row) continue
       const res = outcome.results[gid]
       row.played += 1
+      if (live) row.live += 1
       if (res === 'W') row.won += 1
       else if (res === 'D') row.drawn += 1
       else row.lost += 1
       row.points += POINTS[res]
-      row.form.push(res)
+      row.form.push({ result: res, live })
       const m = outcome.metrics[gid]
       if (m) {
         row.playerRounds += m.playerRounds
+        row.fairways += m.fairways
         row.totalStrokes += m.totalStrokes
       }
     }
@@ -271,7 +305,7 @@ export function computeStandings(data, range = null) {
 
   const list = Object.values(rows).map((r) => ({
     ...r,
-    avgStrokes: r.playerRounds ? r.totalStrokes / r.playerRounds : null,
+    avgStrokes: r.fairways ? (r.totalStrokes / r.fairways) * FAIRWAY_COUNT : null,
     form: r.form.slice(-5),
   }))
 

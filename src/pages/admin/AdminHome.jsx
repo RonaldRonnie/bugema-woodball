@@ -121,7 +121,7 @@ export default function AdminHome() {
             <h2>Needs attention</h2>
             {issues.pending.length > 0 && (
               <>
-                <p className="small muted mb-0">Matches without a result yet (no points awarded until decided):</p>
+                <p className="small muted mb-0">Matches without a result yet (a group has no scores entered, or a manual result is not set):</p>
                 <ul>
                   {issues.pending.slice(0, 8).map((m) => (
                     <li key={m.id}>
@@ -135,7 +135,7 @@ export default function AdminHome() {
             )}
             {issues.incomplete.length > 0 && (
               <>
-                <p className="small muted mb-0">Rounds with missing fairway scores (not counted in statistics):</p>
+                <p className="small muted mb-0">Rounds in progress (fewer than 12 fairways entered — results stay “live” until finished):</p>
                 <ul>
                   {issues.incomplete.slice(0, 8).map((e) => (
                     <li key={`${e.roundId}-${e.playerId}`}>

@@ -61,7 +61,7 @@ export default function GroupDetail() {
         <section className="stat-grid" aria-label="Group totals">
           <StatTile label="Rank" value={s?.rank ?? '–'} note={`${s?.points ?? 0} points`} />
           <StatTile label="Record (W-D-L)" value={`${s?.won ?? 0}-${s?.drawn ?? 0}-${s?.lost ?? 0}`} note={`${s?.played ?? 0} matches decided`} />
-          <StatTile label="Average strokes" value={formatAvg(stats.avgStrokes)} note={`${stats.roundsCompleted} completed player rounds`} />
+          <StatTile label="Average strokes" value={formatAvg(stats.avgStrokes)} note={`per round · ${stats.fairwaysPlayed} fairways played`} />
           <StatTile label="Best round" value={stats.bestRound?.total ?? '—'} note={stats.bestRound ? formatDate(stats.bestRound.date) : 'no rounds yet'} />
         </section>
 
@@ -91,7 +91,7 @@ export default function GroupDetail() {
                         </td>
                         <td className="num">{formatAvg(metrics?.avgStrokes)}</td>
                         <td className="center">
-                          {outcome.status === 'practice' ? <span className="muted small">—</span> : <ResultBadge result={result} />}
+                          {outcome.status === 'practice' ? <span className="muted small">—</span> : <ResultBadge result={result} live={outcome.status === 'live'} />}
                         </td>
                       </tr>
                     ))}

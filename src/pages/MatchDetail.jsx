@@ -3,9 +3,9 @@ import { useParams, Link } from 'react-router-dom'
 import { useData, useLookups } from '../state/DataContext.jsx'
 import { useAdmin } from '../state/AdminContext.jsx'
 import { useTitle } from '../components/Layout.jsx'
-import { PageHeader, ResultBadge, EmptyState, MatchTypeTag, GroupBadge } from '../components/common.jsx'
+import { PageHeader, ResultBadge, EmptyState, MatchTypeTag, GroupBadge, LiveTag } from '../components/common.jsx'
 import Icon from '../components/Icons.jsx'
-import { computeOutcome, roundTotal, isRoundComplete, FAIRWAY_COUNT, POINTS } from '../lib/scoring.js'
+import { computeOutcome, hasResult, roundTotal, isRoundComplete, FAIRWAY_COUNT, POINTS } from '../lib/scoring.js'
 import { formatDate } from '../lib/dates.js'
 import { formatAvg, sameDayIndex } from '../lib/stats.js'
 
@@ -54,14 +54,19 @@ export default function MatchDetail() {
         <section className="card">
           <div className="card-header">
             <h2>Outcome</h2>
-            <MatchTypeTag match={match} />
+            <span className="row" style={{ gap: 6 }}>
+              {outcome.status === 'live' && <LiveTag />}
+              <MatchTypeTag match={match} />
+            </span>
           </div>
           {outcome.status === 'practice' && <p className="muted mb-0">Practice session — scores count for individual statistics; no points are awarded.</p>}
           {outcome.status === 'pending' && (
             <p className="muted mb-0">
               {match.outcomeMode === 'manual'
                 ? 'Waiting for the coach to set the result.'
-                : 'Pending — every group needs at least one completed round (all 12 fairways) to decide the result.'}
+                : outcome.waitingForCompletion
+                  ? 'In progress — the result is decided when every started scorecard has all 12 fairways (live results are switched off in Settings).'
+                  : 'Pending — every group needs at least one fairway score entered.'}
             </p>
           )}
           <div className="table-wrap mt-1">
@@ -69,11 +74,15 @@ export default function MatchDetail() {
               <thead>
                 <tr>
                   <th>Group</th>
-                  <th className="num">Player rounds</th>
+                  <th className="num" title="Fairway scores entered">
+                    Fairways
+                  </th>
                   <th className="num">Total strokes</th>
-                  <th className="num">Avg strokes</th>
-                  {outcome.status === 'decided' && <th className="center">Result</th>}
-                  {outcome.status === 'decided' && <th className="num">Points</th>}
+                  <th className="num" title="Average strokes per round (per fairway × 12)">
+                    Avg strokes
+                  </th>
+                  {hasResult(outcome) && <th className="center">Result</th>}
+                  {hasResult(outcome) && <th className="num">Points</th>}
                 </tr>
               </thead>
               <tbody>
@@ -85,26 +94,26 @@ export default function MatchDetail() {
                       <td>
                         <GroupBadge group={groupsById[gid]} link />
                       </td>
-                      <td className="num">{m?.playerRounds ?? 0}</td>
+                      <td className="num">{m?.fairways ?? 0}</td>
                       <td className="num">{m?.totalStrokes ?? 0}</td>
                       <td className="num strong">{formatAvg(m?.avgStrokes)}</td>
-                      {outcome.status === 'decided' && (
+                      {hasResult(outcome) && (
                         <td className="center">
-                          <ResultBadge result={r} />
+                          <ResultBadge result={r} live={outcome.status === 'live'} />
                         </td>
                       )}
-                      {outcome.status === 'decided' && <td className="num strong">{POINTS[r]}</td>}
+                      {hasResult(outcome) && <td className="num strong">{POINTS[r]}</td>}
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-          {outcome.status === 'decided' && (
+          {hasResult(outcome) && (
             <p className="small muted mt-1 mb-0">
               {match.outcomeMode === 'manual'
                 ? 'Result set by the coach.'
-                : `Decided automatically by ${outcome.compared === 'total' ? 'total strokes' : 'average strokes per player round'} (fewer is better).`}
+                : `${outcome.status === 'live' ? 'Live result based on the fairways entered so far — it can change until every scorecard is complete. ' : ''}Decided by ${outcome.compared === 'total' ? 'total strokes' : 'average strokes per round (per fairway × 12)'} — fewer is better.`}
             </p>
           )}
           {match.notes && (
@@ -152,7 +161,7 @@ export default function MatchDetail() {
                             ))}
                             <td className="num strong">
                               {f ? roundTotal(f) : <span className="muted">—</span>}
-                              {f && !isRoundComplete(f) && <span className="sr-only"> (incomplete)</span>}
+                              {f && !isRoundComplete(f) && <span className="sr-only"> (in progress)</span>}
                               {f && !isRoundComplete(f) && <span className="muted">*</span>}
                             </td>
                           </tr>
@@ -164,7 +173,7 @@ export default function MatchDetail() {
             </div>
           </section>
         ))}
-        <p className="small muted">* incomplete round (not all 12 fairways entered) — not counted in statistics.</p>
+        <p className="small muted">* round in progress (fewer than 12 fairways entered). Its scores already count in the averages; best-round records need all 12.</p>
       </div>
     </>
   )

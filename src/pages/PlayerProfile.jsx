@@ -66,10 +66,10 @@ export default function PlayerProfile() {
           <StatTile
             label="Rounds completed"
             value={stats.roundsCompleted}
-            note={stats.incompleteRounds ? `${stats.incompleteRounds} incomplete` : '12 fairways each'}
+            note={stats.incompleteRounds ? `+${stats.incompleteRounds} in progress` : '12 fairways each'}
           />
-          <StatTile label="Total strokes" value={stats.totalStrokes} note="completed rounds" />
-          <StatTile label="Average per round" value={formatAvg(stats.avgStrokes)} note="lower is better" />
+          <StatTile label="Total strokes" value={stats.totalStrokes} note={`${stats.fairwaysPlayed} fairways played`} />
+          <StatTile label="Average per round" value={formatAvg(stats.avgStrokes)} note={stats.incompleteRounds ? 'per 12 fairways · lower is better' : 'lower is better'} />
           <StatTile
             label="Best round"
             value={stats.bestRound?.total ?? '—'}

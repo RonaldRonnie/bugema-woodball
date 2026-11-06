@@ -11,7 +11,7 @@ export const POINTS = Object.freeze({ W: 3, D: 1, L: 0 })
 export const TIE_BREAKER_OPTIONS = Object.freeze({
   wins: 'Most wins',
   headToHead: 'Head-to-head record between the tied groups',
-  avgStrokes: 'Lowest average strokes per player round',
+  avgStrokes: 'Lowest average strokes per round',
   fewerLosses: 'Fewest losses',
   bestRound: 'Best (lowest) single round by a group member',
 })
@@ -25,6 +25,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   // 'average' compares average strokes per player round (fair when group
   // sizes differ); 'total' compares total strokes.
   outcomeMetric: 'average',
+  // Count matches still in progress (not every scorecard has 12 fairways)
+  // in the standings with their current, provisional result.
+  liveResults: true,
   // Ordered tie-breakers applied after points.
   tieBreakers: [
     { key: 'wins', enabled: true },
@@ -33,7 +36,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     { key: 'fewerLosses', enabled: false },
     { key: 'bestRound', enabled: false },
   ],
-  // Players need at least this many completed rounds to be ranked.
+  // Players need at least this many rounds played (rounds in progress count) to be ranked.
   minRoundsForRanking: 1,
   // Upper bound accepted when entering a single fairway score.
   maxStrokesPerFairway: 15,

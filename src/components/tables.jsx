@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom'
-import { GroupBadge, FormStrip, ResultBadge, MatchTypeTag } from './common.jsx'
+import { GroupBadge, FormStrip, ResultBadge, MatchTypeTag, LiveTag } from './common.jsx'
 import { PlayerAvatar } from './media.jsx'
 import { formatAvg, sameDayIndex } from '../lib/stats.js'
 import { formatDate } from '../lib/dates.js'
-import { computeOutcome } from '../lib/scoring.js'
+import { computeOutcome, hasResult } from '../lib/scoring.js'
 
-/** Group leaderboard. Points are W 3 · D 1 · L 0. */
+/** Group leaderboard. Points are W 3 · D 1 · L 0; matches in progress count with a live result. */
 export function StandingsTable({ standings, compact = false }) {
+  const liveMatches = standings.some((s) => s.live > 0)
   return (
+    <>
     <div className="table-wrap">
       <table className="table">
         <caption className="sr-only">Group standings</caption>
@@ -31,7 +33,7 @@ export function StandingsTable({ standings, compact = false }) {
               Pts
             </th>
             {!compact && (
-              <th className="num" title="Average strokes per player round in matches">
+              <th className="num" title="Average strokes per round (per fairway × 12), every fairway entered in matches">
                 Avg strokes
               </th>
             )}
@@ -50,6 +52,15 @@ export function StandingsTable({ standings, compact = false }) {
                   <span className="group-dot" style={{ background: s.color }} aria-hidden="true" />
                   {s.name}
                 </Link>
+                {s.live > 0 && (
+                  <span className="sr-only"> (includes {s.live} match{s.live === 1 ? '' : 'es'} in progress)</span>
+                )}
+                {s.live > 0 && !compact && (
+                  <>
+                    {' '}
+                    <LiveTag />
+                  </>
+                )}
               </td>
               <td className="num">{s.played}</td>
               <td className="num">{s.won}</td>
@@ -67,13 +78,19 @@ export function StandingsTable({ standings, compact = false }) {
         </tbody>
       </table>
     </div>
+    {liveMatches && (
+      <p className="small muted live-note">
+        <LiveTag /> Includes matches still in progress — points can change until every scorecard has all 12 fairways.
+      </p>
+    )}
+    </>
   )
 }
 
 /** Individual rankings by average strokes per completed round. */
 export function PlayerRankingTable({ rows, groupsById, limit, showGroup = true, showUnranked = false }) {
   const list = (showUnranked ? rows : rows.filter((r) => r.rank != null)).slice(0, limit || undefined)
-  if (!list.length) return <p className="muted small flush-pad">No player has completed a round in this period yet.</p>
+  if (!list.length) return <p className="muted small flush-pad">No scores have been entered in this period yet.</p>
   return (
     <div className="table-wrap">
       <table className="table">
@@ -83,8 +100,12 @@ export function PlayerRankingTable({ rows, groupsById, limit, showGroup = true, 
             <th className="center">#</th>
             <th>Player</th>
             {showGroup && <th className="hide-sm">Group</th>}
-            <th className="num">Rounds</th>
-            <th className="num">Avg</th>
+            <th className="num" title="Fairway scores entered, including rounds in progress">
+              Fairways
+            </th>
+            <th className="num" title="Average strokes per round (per fairway × 12)">
+              Avg
+            </th>
             <th className="num">Best</th>
           </tr>
         </thead>
@@ -103,7 +124,7 @@ export function PlayerRankingTable({ rows, groupsById, limit, showGroup = true, 
                   <GroupBadge group={groupsById[r.player.groupId]} />
                 </td>
               )}
-              <td className="num">{r.roundsCompleted}</td>
+              <td className="num">{r.fairwaysPlayed}</td>
               <td className="num strong">{formatAvg(r.avgStrokes)}</td>
               <td className="num">{r.bestRound?.total ?? '—'}</td>
             </tr>
@@ -133,13 +154,14 @@ export function MatchRow({ match, data, groupsById, to }) {
         </div>
       </div>
       <div className="list-end">
-        {outcome.status === 'decided' ? (
+        {hasResult(outcome) ? (
           <div className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+            {outcome.status === 'live' && <LiveTag />}
             {match.groupIds.map((g) => (
               <span key={g} className="row" style={{ gap: 4 }} title={groupsById[g]?.name}>
                 <span className="group-dot" style={{ background: groupsById[g]?.color }} aria-hidden="true" />
                 <span className="sr-only">{groupsById[g]?.name}</span>
-                <ResultBadge result={outcome.results[g]} />
+                <ResultBadge result={outcome.results[g]} live={outcome.status === 'live'} />
               </span>
             ))}
           </div>

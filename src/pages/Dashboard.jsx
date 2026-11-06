@@ -54,7 +54,11 @@ export default function Dashboard() {
           value={summary.competitiveMatches}
           note={`${summary.practiceSessions} practice session${summary.practiceSessions === 1 ? '' : 's'}`}
         />
-        <StatTile label="Rounds completed" value={summary.playerRounds} note="12 fairways each" />
+        <StatTile
+          label="Rounds completed"
+          value={summary.playerRounds}
+          note={summary.incompleteRounds ? `+${summary.incompleteRounds} in progress` : '12 fairways each'}
+        />
         <StatTile label="Team average" value={formatAvg(summary.avgStrokes)} note="strokes per round · lower is better" />
       </section>
 
@@ -83,7 +87,7 @@ export default function Dashboard() {
           <div className="card-header">
             <div>
               <h2>Performance over time</h2>
-              <p className="card-sub">Average strokes per completed round, per group — lower is better</p>
+              <p className="card-sub">Average strokes per round (per fairway × 12), per group — lower is better</p>
             </div>
           </div>
           <GroupTrendChart data={trend} groups={data.groups} />

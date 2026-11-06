@@ -74,7 +74,8 @@ export default function Leaderboard() {
             <div>
               <h2>Player rankings</h2>
               <p className="card-sub">
-                By average strokes per completed round (lower is better). Minimum {data.settings.minRoundsForRanking} round
+                By average strokes per round — every fairway entered counts, scaled to 12 fairways (lower is better). Minimum{' '}
+                {data.settings.minRoundsForRanking} round
                 {data.settings.minRoundsForRanking === 1 ? '' : 's'} to be ranked.
               </p>
             </div>

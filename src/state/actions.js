@@ -324,6 +324,7 @@ export function updateSettings(draft, patch) {
     if (!['average', 'total'].includes(patch.outcomeMetric)) throw new ActionError('Invalid outcome rule.')
     s.outcomeMetric = patch.outcomeMetric
   }
+  if ('liveResults' in patch) s.liveResults = Boolean(patch.liveResults)
   if ('tieBreakers' in patch) {
     const keys = Object.keys(TIE_BREAKER_OPTIONS)
     const list = patch.tieBreakers
