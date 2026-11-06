@@ -267,7 +267,7 @@ export function loadDataset() {
       data: null,
       warning: keptAs
         ? `Saved data in this browser could not be loaded (${e.message}). A copy was kept as "${keptAs}". Restore a backup to continue.`
-        : `Saved data in this browser could not be loaded (${e.message}). Editing is paused so it is not overwritten — download it from Admin → Backup & data, or restore a backup.`,
+        : `Saved data in this browser could not be loaded (${e.message}). Editing is paused so it is not overwritten — download it from Admin → Publish & backup, or restore a backup.`,
       unreadable: true,
       keptCopy: Boolean(keptAs),
     }

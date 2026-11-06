@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "set-password": "node scripts/set-admin-password.mjs"
   },
   "engines": {
     "node": ">=20.19"

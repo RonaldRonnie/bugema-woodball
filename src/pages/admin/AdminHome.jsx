@@ -8,6 +8,7 @@ import Icon from '../../components/Icons.jsx'
 import { teamSummary } from '../../lib/stats.js'
 import { collectEntries, sortMatches, computeOutcome } from '../../lib/scoring.js'
 import { formatDateTime, formatDate } from '../../lib/dates.js'
+import { hasUnpublishedChanges } from '../../components/PublishPanel.jsx'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -50,6 +51,21 @@ export function BackupReminder() {
   )
 }
 
+function PublishReminder() {
+  const { data, meta, snapshot, source } = useData()
+  if (!hasUnpublishedChanges({ data, meta, snapshot, source })) return null
+  return (
+    <Banner kind="warning">
+      <p>
+        <strong>The team cannot see your latest changes yet.</strong> Publish the results to update the website for everyone.
+      </p>
+      <Link to="/admin/data" className="btn btn-sm btn-accent">
+        <Icon name="upload" /> Publish results
+      </Link>
+    </Banner>
+  )
+}
+
 export default function AdminHome() {
   useTitle('Admin dashboard')
   const { data, source } = useData()
@@ -66,6 +82,7 @@ export default function AdminHome() {
   return (
     <>
       <PageHeader title="Admin dashboard" subtitle={source === 'seed' ? 'Initial roster loaded — nothing has been saved on this device yet.' : `Last change ${formatDateTime(data.updatedAt)}`} />
+      <PublishReminder />
       <BackupReminder />
 
       <div className="stack">
@@ -86,9 +103,9 @@ export default function AdminHome() {
             <span>Name, group, photo</span>
           </Link>
           <Link to="/admin/data" className="quick-action">
-            <Icon name="database" />
-            Backup &amp; publish
-            <span>JSON backup, restore</span>
+            <Icon name="upload" />
+            Publish results
+            <span>Update the website for everyone</span>
           </Link>
         </section>
 

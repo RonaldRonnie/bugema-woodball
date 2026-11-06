@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { createSeedData } from '../data/seed.js'
 import { DATA_KEY, loadDataset, saveDataset, validateDataset, isStorageAvailable, clearDataset, readMeta, writeMeta } from '../services/storage.js'
-import { fetchPublishedSnapshot } from '../services/snapshot.js'
+import { fetchPublishedSnapshot, fetchSnapshotImageBlobs, imageFileUrls } from '../services/snapshot.js'
 import { decodeImages, writeImages } from '../services/backup.js'
 import { removeUnreferencedImages, isImageStoreAvailable } from '../services/imageStore.js'
 import { referencedImageIds } from '../lib/images.js'
@@ -41,31 +41,49 @@ export function DataProvider({ children }) {
   const [meta, setMeta] = useState(readMeta) // e.g. when the last backup was made
   const [imagesVersion, setImagesVersion] = useState(0) // bumped when photos are restored
 
-  /** Records that a backup was made (drives the backup reminder). */
-  const recordBackup = useCallback((patch) => setMeta(writeMeta(patch)), [])
+  /** Saves small device-only facts such as when the last backup or publish happened. */
+  const updateMeta = useCallback((patch) => setMeta(writeMeta(patch)), [])
   const dataRef = useRef(state.data)
   const sourceRef = useRef(state.source)
   const blockedRef = useRef(false)
+  const unreadableRef = useRef(Boolean(state.unreadable))
   dataRef.current = state.data
   sourceRef.current = state.source
   blockedRef.current = Boolean(state.blocked)
+  unreadableRef.current = Boolean(state.unreadable)
 
   const storageOk = useMemo(() => isStorageAvailable(), [])
 
-  // Look for published results; show them when this browser has no data.
+  // Load the published results and show them when this browser has no data
+  // of its own (i.e. for everyone except the coach). Pages left open pick up
+  // newly published results when the viewer comes back to the tab, and every
+  // few minutes while it is visible.
   useEffect(() => {
     let cancelled = false
-    fetchPublishedSnapshot().then((snap) => {
-      if (cancelled || !snap) return
-      setSnapshot(snap)
-      if (sourceRef.current === 'seed' && !state.unreadable) {
-        setState((s) => (s.source === 'seed' ? { ...s, data: snap.data, source: 'snapshot' } : s))
-      }
-    })
+    let lastCheck = 0
+    let lastExport = null
+    const refresh = () => {
+      lastCheck = Date.now()
+      fetchPublishedSnapshot().then((snap) => {
+        if (cancelled || !snap || snap.exportedAt === lastExport) return
+        lastExport = snap.exportedAt
+        setSnapshot(snap)
+        if (!unreadableRef.current && (sourceRef.current === 'seed' || sourceRef.current === 'snapshot')) {
+          setState((s) => (s.source === 'seed' || s.source === 'snapshot' ? { ...s, data: snap.data, source: 'snapshot' } : s))
+        }
+      })
+    }
+    refresh()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastCheck > 60 * 1000) refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = setInterval(() => document.visibilityState === 'visible' && refresh(), 5 * 60 * 1000)
     return () => {
       cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(timer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Once per start-up, delete stored photos that no record uses any more
@@ -94,11 +112,11 @@ export function DataProvider({ children }) {
   const commit = useCallback(
     (mutator, { success, quiet = false } = {}) => {
       if (blockedRef.current) {
-        toast.error('Saved data could not be read and no safety copy could be made, so editing is paused to protect it. Go to Admin → Backup & data to download the unreadable data or restore a backup.')
+        toast.error('Saved data could not be read and no safety copy could be made, so editing is paused to protect it. Go to Admin → Publish & backup to download the unreadable data or restore a backup.')
         return { ok: false }
       }
       if (sourceRef.current === 'snapshot') {
-        toast.error('You are viewing published results. Copy them into this browser before editing (Admin → Backup & data).')
+        toast.error('You are viewing published results. Copy them into this browser before editing (Admin → Publish & backup).')
         return { ok: false }
       }
       const current = dataRef.current
@@ -138,10 +156,10 @@ export function DataProvider({ children }) {
    * check everything → add the new photos (nothing deleted) → save the
    * records → only then remove photos that are no longer used.
    */
-  const replaceAll = useCallback(async ({ data, images }) => {
+  const replaceAll = useCallback(async ({ data, images, blobs = [] }) => {
     const errors = validateDataset(data)
     if (errors.length) throw new Error(errors[0])
-    const decoded = decodeImages(images)
+    const decoded = [...decodeImages(images), ...blobs]
     const restoredImages = await writeImages(decoded)
     saveDataset(data)
     dataRef.current = data
@@ -152,11 +170,29 @@ export function DataProvider({ children }) {
     return { restoredImages }
   }, [])
 
-  /** Copies the published snapshot (with its photos) into this browser for editing. */
+  /** Copies the published results (with their photos) into this browser for editing. */
   const adoptSnapshot = useCallback(async () => {
     if (!snapshot) throw new Error('No published results are available.')
-    return replaceAll({ data: snapshot.data, images: snapshot.images })
+    const blobs = await fetchSnapshotImageBlobs(snapshot) // download every photo first; nothing changes if one fails
+    return replaceAll({ data: snapshot.data, images: snapshot.images, blobs })
   }, [snapshot, replaceAll])
+
+  /** Remembers a successful publish from this device. */
+  const notePublished = useCallback(
+    ({ data, exportedAt, imageFiles, commitSha }) => {
+      updateMeta({ lastPublishedAt: exportedAt, lastPublishedDataAt: data.updatedAt, lastPublishCommit: commitSha })
+      setSnapshot((prev) => ({
+        ...(prev || {}),
+        data,
+        exportedAt,
+        images: {},
+        imageFiles,
+        displayImages: imageFileUrls(imageFiles),
+        summary: { ...(prev?.summary || {}), matches: data.matches.length, players: data.players.length, groups: data.groups.length },
+      }))
+    },
+    [updateMeta],
+  )
 
   /** Starts again from the initial roster (after the user has confirmed). Returns success. */
   const resetToSeed = useCallback(() => {
@@ -196,11 +232,12 @@ export function DataProvider({ children }) {
       warning: state.warning,
       storageOk,
       snapshot,
-      snapshotImages: state.source === 'snapshot' ? snapshot?.images || null : null,
+      snapshotImages: state.source === 'snapshot' ? snapshot?.displayImages || null : null,
       imagesVersion,
       blocked: Boolean(state.blocked),
       meta,
-      recordBackup,
+      updateMeta,
+      notePublished,
       commit,
       actions,
       replaceAll,
@@ -208,7 +245,7 @@ export function DataProvider({ children }) {
       resetToSeed,
       discardLocal,
     }),
-    [state, storageOk, snapshot, imagesVersion, meta, recordBackup, commit, replaceAll, adoptSnapshot, resetToSeed, discardLocal],
+    [state, storageOk, snapshot, imagesVersion, meta, updateMeta, notePublished, commit, replaceAll, adoptSnapshot, resetToSeed, discardLocal],
   )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>

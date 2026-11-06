@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { useData } from '../../state/DataContext.jsx'
-import { useAdmin } from '../../state/AdminContext.jsx'
-import { useToast, useConfirm } from '../../state/UIContext.jsx'
+import { useToast } from '../../state/UIContext.jsx'
 import { useTitle } from '../../components/Layout.jsx'
-import { PageHeader, Banner } from '../../components/common.jsx'
+import { PageHeader } from '../../components/common.jsx'
 import { PhotoPicker, StoredImage } from '../../components/media.jsx'
 import Icon from '../../components/Icons.jsx'
 import { TIE_BREAKER_OPTIONS } from '../../data/defaults.js'
@@ -248,52 +247,15 @@ function ScoringRules() {
   )
 }
 
-function EditLock() {
-  const { hasPin, setPin } = useAdmin()
-  const toast = useToast()
-  const confirm = useConfirm()
-  const [pin, setPinValue] = useState('')
-  const save = (e) => {
-    e.preventDefault()
-    if (!/^\d{4,8}$/.test(pin)) return toast.error('Use 4 to 8 digits.')
-    setPin(pin)
-    setPinValue('')
-    toast.success('Edit-lock PIN set on this device.')
-  }
-  const clear = async () => {
-    if (await confirm({ title: 'Remove the edit-lock PIN?', message: 'Admin mode will no longer ask for a PIN on this device.', confirmLabel: 'Remove PIN' })) {
-      setPin(null)
-      toast.success('PIN removed.')
-    }
-  }
+function AdminPassword() {
   return (
     <section className="card">
-      <h2>Edit lock (optional)</h2>
-      <Banner kind="warning">
-        This PIN is <strong>not security</strong>. It only stops someone casually switching on admin mode on a shared device. It is stored on this
-        device in plain form, is not included in backups, and anyone with access to the browser’s developer tools can bypass it.
-      </Banner>
-      <form onSubmit={save} className="row">
-        <input
-          className="input"
-          style={{ width: 160 }}
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          placeholder={hasPin ? 'New PIN' : '4–8 digits'}
-          value={pin}
-          onChange={(e) => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 8))}
-          aria-label="Edit-lock PIN"
-        />
-        <button type="submit" className="btn btn-primary btn-sm">
-          {hasPin ? 'Change PIN' : 'Set PIN'}
-        </button>
-        {hasPin && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={clear}>
-            Remove PIN
-          </button>
-        )}
-      </form>
+      <h2>Admin password</h2>
+      <p className="small mb-0">
+        Signing in needs the coach’s password. To change it, run <code>npm run set-password -- "new password"</code> in the project folder, then commit
+        and push (see the README). The password itself is never stored in the code — only a one-way fingerprint of it. Everyone who is signed in will
+        need to sign in again after a change.
+      </p>
     </section>
   )
 }
@@ -302,12 +264,12 @@ export default function AdminSettings() {
   useTitle('Settings')
   return (
     <>
-      <PageHeader title="Settings" subtitle="Team details, photos, scoring rules and the edit lock." />
+      <PageHeader title="Settings" subtitle="Team details, photos, scoring rules and the admin password." />
       <div className="stack">
         <TeamInfo />
         <TeamPhotos />
         <ScoringRules />
-        <EditLock />
+        <AdminPassword />
       </div>
     </>
   )

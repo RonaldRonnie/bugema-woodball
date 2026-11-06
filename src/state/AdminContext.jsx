@@ -1,16 +1,14 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { verifyAdminPassword, SESSION_TAG } from '../lib/auth.js'
 
-// Local administration mode.
-//
-// There are no user accounts and no server, so this is NOT security: anyone
-// who can use this browser can switch admin mode on, and anyone with the
-// browser's developer tools can read or change the stored data. Admin mode
-// only separates "viewing" from "editing" so results are not changed by
-// accident. The optional PIN is a speed bump for a shared device, nothing more.
+// Admin sign-in with the coach's password (see lib/auth.js).
+// A signed-in session is remembered for the browser tab, or on this device
+// when "keep me signed in" is ticked. Sessions from an older password are
+// ignored automatically because the stored tag no longer matches.
 
 const AdminContext = createContext(null)
 const SESSION_KEY = 'bu-woodball:admin-session'
-const PIN_KEY = 'bu-woodball:edit-lock-pin'
+const LEGACY_PIN_KEY = 'bu-woodball:edit-lock-pin'
 
 function read(store, key) {
   try {
@@ -24,36 +22,36 @@ function write(store, key, value) {
     if (value == null) window[store].removeItem(key)
     else window[store].setItem(key, value)
   } catch {
-    /* storage unavailable — admin mode simply won't persist */
+    /* storage unavailable — the session simply won't persist */
   }
 }
 
-export function AdminProvider({ children }) {
-  const [isAdmin, setIsAdmin] = useState(() => read('sessionStorage', SESSION_KEY) === '1')
-  const [pin, setPinState] = useState(() => read('localStorage', PIN_KEY))
+const signedIn = () => read('sessionStorage', SESSION_KEY) === SESSION_TAG || read('localStorage', SESSION_KEY) === SESSION_TAG
 
-  const enter = useCallback(
-    (attempt) => {
-      if (pin && attempt !== pin) return false
-      write('sessionStorage', SESSION_KEY, '1')
-      setIsAdmin(true)
-      return true
-    },
-    [pin],
-  )
+export function AdminProvider({ children }) {
+  const [isAdmin, setIsAdmin] = useState(signedIn)
+
+  useEffect(() => {
+    write('localStorage', LEGACY_PIN_KEY, null) // the old optional PIN is replaced by the password
+  }, [])
+
+  /** Checks the password; returns true when signed in. */
+  const enter = useCallback(async (password, { remember = false } = {}) => {
+    const ok = await verifyAdminPassword(password)
+    if (!ok) return false
+    write('sessionStorage', SESSION_KEY, SESSION_TAG)
+    write('localStorage', SESSION_KEY, remember ? SESSION_TAG : null)
+    setIsAdmin(true)
+    return true
+  }, [])
 
   const exit = useCallback(() => {
     write('sessionStorage', SESSION_KEY, null)
+    write('localStorage', SESSION_KEY, null)
     setIsAdmin(false)
   }, [])
 
-  const setPin = useCallback((value) => {
-    const v = value ? String(value).trim() : null
-    write('localStorage', PIN_KEY, v || null)
-    setPinState(v || null)
-  }, [])
-
-  const value = useMemo(() => ({ isAdmin, enter, exit, hasPin: Boolean(pin), setPin }), [isAdmin, enter, exit, pin, setPin])
+  const value = useMemo(() => ({ isAdmin, enter, exit }), [isAdmin, enter, exit])
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
 }
 

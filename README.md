@@ -13,10 +13,10 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 3. [Build](#build)
 4. [Deploy to GitHub Pages](#deploy-to-github-pages)
 5. [Using the app (coach's guide)](#using-the-app-coachs-guide)
-6. [Publishing results so the team can see them](#publishing-results-so-the-team-can-see-them)
+6. [Publishing results so everyone can see them](#publishing-results-so-everyone-can-see-them)
 7. [Backup and restore](#backup-and-restore)
 8. [Limitations of browser-based storage](#limitations-of-browser-based-storage)
-9. [Admin mode and security](#admin-mode-and-security)
+9. [Admin password and security](#admin-password-and-security)
 10. [How scoring works](#how-scoring-works)
 11. [Testing](#testing)
 12. [Project structure](#project-structure)
@@ -34,7 +34,8 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 - **Statistics** for each player (matches, rounds, total strokes, average, best round, history, fairway-by-fairway scores) and each group, filtered by day, week, month, custom range or all time.
 - **Reports**: CSV exports (player, group, team, full match history) and PDF reports (player, group, team) with charts, all filtered by date.
 - **Backup and restore**: one JSON file holding all data and photos, checked before it replaces anything.
-- **Published results**: an optional read-only snapshot file so visitors to the website can see the standings (see below).
+- **Coach sign-in** with a password; visitors can view everything but cannot change anything.
+- **One-click publishing**: the coach presses *Publish results* and, about two minutes later, everyone sees the new results wherever they are.
 
 ---
 
@@ -94,47 +95,53 @@ VITE_BASE_PATH=/bugema-woodball/ npm run build
 
 ## Using the app (coach's guide)
 
-1. Tap **Admin** (bottom bar on phones, top right on computers) and choose **Switch on admin mode**.
+1. Tap **Admin** (bottom bar on phones, top right on computers) and sign in with the coach password.
 2. **Record a match**: Admin → *Record a match* → choose the date, *Competitive match* or *Practice*, the groups and the line-up → *Create match & enter scores*.
 3. **Enter scores**: tap a player, then tap the score for each fairway on the keypad. The cursor moves to the next fairway on its own; for a two-digit score such as 12, tap 1 then 2. The total updates as you go and every value is saved immediately. Use *Next player* to continue, and *Add round* for further rounds.
 4. **Fix mistakes**: tap any fairway and enter the right number. Delete a whole round or match from the match screen, or clear one player's card with *Clear / absent*. Standings recalculate automatically.
 5. **Players and groups**: Admin → *Players* to register, edit, deactivate or delete players, add photos and move players between groups. Admin → *Groups* to manage groups.
 6. **Reports**: *Reports* → choose a period → download CSV or PDF.
-7. **Back up** after every match day: Admin → *Backup & data* → *Download backup*.
+7. **Publish** after every training or match day: Admin → *Publish & backup* → **Publish results now**. Everyone sees the update in about 2 minutes.
+8. **Back up** regularly on the same page: *Download backup*.
 
 No source code ever needs to be edited to add players or record results.
 
 ---
 
-## Publishing results so the team can see them
+## Publishing results so everyone can see them
 
-Because records live in the coach's browser, other people who open the website would only see the empty starting roster. To share results without a server:
+Records you enter are saved on your own device first. To show them to the team, you **publish**. The app writes the results into this GitHub repository (`public/data/snapshot.json`, with photos in `public/data/images/`). The deploy workflow then rebuilds the site, and about two minutes later everyone who opens the website sees the new standings, results and statistics, wherever they are. Pages that are already open refresh when the viewer returns to them.
 
-1. Admin → **Backup & data** → **Download snapshot.json**.
-2. On GitHub, open the repository → `public/data/` → **Add file → Upload files**. Upload `snapshot.json` (replacing the old one) and click **Commit changes**.
-3. The workflow rebuilds the site. A few minutes later every visitor sees the published standings, results and statistics (read-only).
+### One-time setup (on the coach's own device)
 
-How the app decides what to show:
+Publishing needs a GitHub **access key** (a fine-grained personal access token). Only you have it, so only you can change what the team sees.
 
-| This browser has… | It shows |
-|---|---|
-| Its own saved records (e.g. the coach's phone) | Those records |
-| No saved records, but a published snapshot exists | The published results (read-only) |
-| Neither | The initial roster with no results |
+1. On a computer, sign in to GitHub and open **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token** (direct link: https://github.com/settings/personal-access-tokens/new).
+2. **Token name**: `Woodball publishing`. **Expiration**: pick a date (up to a year). You will need to create a new key when it expires.
+3. **Repository access**: *Only select repositories* → `bugema-woodball`.
+4. **Permissions → Repository permissions**: **Contents → Read and write**, and **Actions → Read-only** (so the app can show when the website has finished updating).
+5. Click **Generate token** and copy it (it starts with `github_pat_`).
+6. In the app: sign in → **Admin → Publish & backup** → paste the key → **Check and save**.
 
-If photos are included in the snapshot, they become public on the website. Untick *Include photos* if you do not want that.
+The key is stored only in that browser on that device. It is never put in backups, published files or the code. Don't set it up on a shared device. To revoke it, delete it on GitHub.
 
-A coach starting on a new device can open Admin and choose **Copy the published results into this browser** to carry on from the last published state. Restoring a full backup is more complete, because a snapshot holds only what was published.
+### Publishing
+
+Admin → **Publish & backup** → **Publish results now** → confirm. The admin dashboard reminds you when there are changes the team can't see yet.
+
+- **Photos**: published photos become public. Untick *Include photos* to publish without them; previously published photos are then removed from the site.
+- **Several devices**: if you use a second phone or laptop, sign in there, open Admin and choose **Copy the published results into this browser** to continue from the latest published results. If you try to publish from a device whose data is older than what is online, the app warns you first.
+- **Without a key**: a *Manual publishing* option on the same page downloads `snapshot.json`, which you can upload to `public/data/` on GitHub yourself.
 
 ---
 
 ## Backup and restore
 
-**Back up**: Admin → *Backup & data* → *Download backup (.json)*. The file contains every group, player, match, round, fairway score, setting and (optionally) photo. Store it somewhere safe, such as Google Drive, email or a USB stick. The admin dashboard shows a reminder when there are changes that have not been backed up.
+**Back up**: Admin → *Publish & backup* → *Download backup (.json)*. The file contains every group, player, match, round, fairway score, setting and (optionally) photo. Store it somewhere safe, such as Google Drive, email or a USB stick. The admin dashboard shows a reminder when there are changes that have not been backed up.
 
-**Restore**: Admin → *Backup & data* → *Choose backup file…*. The app first checks that the file is valid, then shows what is currently stored and what the backup contains, and asks you to confirm before replacing anything. If the file is invalid, nothing is changed.
+**Restore**: Admin → *Publish & backup* → *Choose backup file…*. The app first checks that the file is valid, then shows what is currently stored and what the backup contains, and asks you to confirm before replacing anything. If the file is invalid, nothing is changed.
 
-**Moving to a new phone or computer**: back up on the old device, open the site on the new device, switch on admin mode and restore the file.
+**Moving to a new phone or computer**: either copy the published results on the new device (Admin → *Copy the published results into this browser*), or back up on the old device and restore the file on the new one.
 
 The backup format is versioned (`schemaVersion`). Future versions of the app will upgrade older backups automatically. A backup from a newer app version is refused rather than loaded incorrectly.
 
@@ -144,24 +151,29 @@ The backup format is versioned (`schemaVersion`). Future versions of the app wil
 
 Please read this before relying on the app.
 
-- **No automatic sync.** Data is stored in one browser on one device. A phone and a laptop each keep separate records. Use backup/restore to move data, and publish a snapshot to share results.
-- **Data can be lost** if the browser's site data is cleared, if a private/incognito window is used, if the browser is uninstalled, or (rarely) if the device runs very low on storage. The *Backup & data* page has a button that asks the browser to protect the data from automatic clean-up. **Regular backups are the real safeguard.**
+- **Edits are per device until published.** A phone and a laptop each keep their own working copy. Publish to share results with everyone; use *Copy the published results into this browser* (or backup/restore) to continue on another device.
+- **Data can be lost** if the browser's site data is cleared, if a private/incognito window is used, if the browser is uninstalled, or (rarely) if the device runs very low on storage. The *Publish & backup* page has a button that asks the browser to protect the data from automatic clean-up. **Regular backups are the real safeguard.**
 - **Storage limits.** Records use LocalStorage (about 5 MB, which is enough for many seasons of scores). Photos use IndexedDB, which allows much more. Photos are resized automatically (player photos to 480 px, team photos to 1600 px).
-- **One editor at a time.** Two devices editing separately cannot be merged automatically; the last restore wins. Choose one device as the coach's main device.
+- **One editor at a time.** Two devices editing separately cannot be merged automatically; the last publish wins (the app warns before overwriting newer online results). Choose one device as the coach's main device.
 - **Different browsers on the same device** (for example Chrome and Firefox) also keep separate data.
 
 ---
 
-## Admin mode and security
+## Admin password and security
 
-The app has **no user accounts and no server**, so it cannot offer real authentication, and it does not pretend to.
+- Only the coach can sign in (Admin → enter the password). Visitors can view everything but cannot open the admin area.
+- The password is **not stored in the code**. `src/lib/auth.js` holds only a salted, slow one-way fingerprint of it (PBKDF2-SHA256), because this repository is public.
+- *Keep me signed in on this device* remembers the sign-in on that device until you press **Sign out**. Use it only on your own phone or computer.
+- **Changing the password**: in the project folder run
+  ```bash
+  npm run set-password -- "your new password"
+  git commit -am "Change admin password" && git push
+  ```
+  The live site uses the new password after the automatic deploy, and everyone who was signed in must sign in again.
 
-- Admin mode only separates *viewing* from *editing* so results are not changed by accident.
-- Anyone using the coach's browser can switch on admin mode. The optional **edit-lock PIN** (Admin → Settings) only slows down casual use of a shared device. It is stored in plain form on that device and can be bypassed with browser developer tools.
-- Visitors to the public website cannot change the coach's records. Any edits a visitor makes stay in their own browser and affect no one else.
-- **Use admin mode on a trusted, single device** that only the coach uses.
+What actually protects the results: the sign-in check runs in the browser, so a technically skilled person could get past it on **their own** device. That would only let them change a private copy in their own browser. What everyone sees changes only when results are **published**, and publishing needs the GitHub access key that exists only on the coach's device.
 
----
+Use a password you don't use anywhere else. A longer passphrase is stronger.
 
 ## How scoring works
 
@@ -193,14 +205,17 @@ The GitHub Actions workflow runs these tests before every deployment, and a fail
 ```
 src/
   data/          seed roster and default settings
-  lib/           pure logic: scoring, statistics, dates, CSV, PDF, images
+  lib/           pure logic: scoring, statistics, dates, CSV, PDF, images,
+                 auth.js (admin password fingerprint)
   services/      storage.js (LocalStorage persistence, validation, migrations),
-                 imageStore.js (IndexedDB photos), backup.js, snapshot.js
+                 imageStore.js (IndexedDB photos), backup.js, snapshot.js,
+                 publish.js (one-click publishing through the GitHub API)
   state/         DataContext (safe commits), actions (data operations),
                  AdminContext, UI (toasts, confirm dialog), image hooks
   components/    layout, charts, tables, filters, photo picker
   pages/         public pages; pages/admin/ for the administration area
-public/data/     snapshot.json goes here when results are published
+public/data/     published results (snapshot.json) and photos (images/)
+scripts/         set-admin-password.mjs
 tests/           Vitest unit and integration tests
 .github/workflows/deploy.yml   build, test and deploy to GitHub Pages
 ```

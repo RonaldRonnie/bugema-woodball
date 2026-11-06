@@ -9,7 +9,7 @@ import { playerStats, allPlayerStats, groupStats, teamSummary, formatAvg } from 
 import { formatDate, formatDateTime } from './dates.js'
 import { slugify, rangeSlug } from './download.js'
 import { getImage, isImageStoreAvailable } from '../services/imageStore.js'
-import { blobToDataURL } from './images.js'
+import { blobToDataURL, imageSourceToDataURL } from './images.js'
 import { NEUTRAL_SERIES } from './colors.js'
 
 const PAGE_W = 210
@@ -264,7 +264,7 @@ function finish(ctx, data, filename) {
 
 async function imageDataURL(imageId, snapshotImages) {
   if (!imageId) return null
-  if (snapshotImages?.[imageId]) return snapshotImages[imageId]
+  if (snapshotImages?.[imageId]) return imageSourceToDataURL(snapshotImages[imageId]).catch(() => null)
   if (!isImageStoreAvailable()) return null
   try {
     const blob = await getImage(imageId)

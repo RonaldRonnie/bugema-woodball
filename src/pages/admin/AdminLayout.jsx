@@ -4,7 +4,6 @@ import { useAdmin } from '../../state/AdminContext.jsx'
 import { useData } from '../../state/DataContext.jsx'
 import { useToast, useConfirm } from '../../state/UIContext.jsx'
 import { useTitle } from '../../components/Layout.jsx'
-import { Banner } from '../../components/common.jsx'
 import Icon from '../../components/Icons.jsx'
 import { formatDateTime } from '../../lib/dates.js'
 
@@ -15,63 +14,77 @@ const TABS = [
   { to: '/admin/groups', label: 'Groups' },
   { to: '/reports', label: 'Reports' },
   { to: '/admin/settings', label: 'Settings' },
-  { to: '/admin/data', label: 'Backup & data' },
+  { to: '/admin/data', label: 'Publish & backup' },
 ]
 
 function AdminGate() {
-  useTitle('Admin')
-  const { enter, hasPin } = useAdmin()
-  const [pin, setPin] = useState('')
+  useTitle('Admin sign-in')
+  const { enter } = useAdmin()
+  const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!enter(pin)) setError('That PIN does not match the one set on this device.')
+    if (busy || !password) return
+    setBusy(true)
+    setError('')
+    try {
+      const ok = await enter(password, { remember })
+      if (!ok) {
+        await new Promise((r) => setTimeout(r, 1200)) // slows down guessing
+        setError('Incorrect password.')
+        setPassword('')
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
-    <div className="card" style={{ maxWidth: 560, margin: '0 auto' }}>
-      <h1>Admin mode</h1>
-      <p>Admin mode lets the coach register players, record matches and scores, and manage backups.</p>
-      <Banner kind="warning">
-        <p>
-          <strong>This is not a secure login.</strong> The app has no server or user accounts. Anyone using this browser can switch admin mode on,
-          and the optional PIN only prevents accidental edits on a shared device. Use admin mode on a trusted device that only the coach uses.
-        </p>
-      </Banner>
-      <p className="small muted">
-        Changes are saved only in this browser on this device. They are not shared with other devices automatically — see{' '}
-        <Link to="/about">how data is stored</Link>.
-      </p>
+    <div className="card" style={{ maxWidth: 480, margin: '0 auto' }}>
+      <h1>Coach sign-in</h1>
+      <p>Only the coach can record results, manage players and publish results for the team.</p>
       <form onSubmit={submit} className="stack" style={{ gap: 12 }}>
-        {hasPin && (
-          <div className="field">
-            <label htmlFor="admin-pin">Edit-lock PIN</label>
-            <input
-              id="admin-pin"
-              className="input"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              value={pin}
-              onChange={(e) => {
-                setPin(e.target.value)
-                setError('')
-              }}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'pin-error' : undefined}
-            />
-            {error && (
-              <span id="pin-error" className="field-error">
-                {error}
-              </span>
-            )}
-          </div>
-        )}
-        <button type="submit" className="btn btn-primary btn-block">
-          <Icon name="shield" /> Switch on admin mode
+        <div className="field">
+          <label htmlFor="admin-password">Password</label>
+          <input
+            id="admin-password"
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setError('')
+            }}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'password-error' : undefined}
+            autoFocus
+          />
+          {error && (
+            <span id="password-error" className="field-error" role="alert">
+              {error}
+            </span>
+          )}
+        </div>
+        <label className="check small">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          Keep me signed in on this device (only on your own phone or computer)
+        </label>
+        <button type="submit" className="btn btn-primary btn-block" disabled={busy || !password}>
+          <Icon name="shield" /> {busy ? 'Checking…' : 'Sign in'}
         </button>
       </form>
+      <p className="small muted mt-2 mb-0">
+        Results you record are saved on this device until you publish them. See <Link to="/about">how data is stored</Link>.
+      </p>
     </div>
   )
 }
@@ -141,10 +154,10 @@ export default function AdminLayout() {
     <>
       <div className="admin-strip" role="note">
         <span>
-          <strong>Admin mode</strong> · changes save to this browser only
+          <strong>Signed in as coach</strong> · changes save on this device until you publish
         </span>
         <button type="button" className="btn btn-sm btn-ghost" onClick={exit}>
-          <Icon name="logout" /> Exit admin
+          <Icon name="logout" /> Sign out
         </button>
       </div>
       <nav className="admin-tabs" aria-label="Admin sections">

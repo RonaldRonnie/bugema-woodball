@@ -45,30 +45,34 @@ export default function About() {
               Browsers limit storage (roughly 5 MB for records; photos have more room). Photos are resized automatically to save space.
             </li>
             <li>
-              The safeguard is the <strong>JSON backup</strong>: download one regularly (Admin → Backup &amp; data) and keep it somewhere safe,
+              The safeguard is the <strong>JSON backup</strong>: download one regularly (Admin → Publish &amp; backup) and keep it somewhere safe,
               such as Google Drive or email. A backup restores everything — players, groups, matches, scores, settings and photos — on any device.
             </li>
           </ul>
         </section>
 
         <section className="card">
-          <h2>Admin mode</h2>
+          <h2>Who can change the results</h2>
           <p>
-            There are no user accounts. Admin mode simply separates viewing from editing so results are not changed by accident. It is{' '}
-            <strong>not a security feature</strong>: anyone using this browser can turn it on, and the optional PIN only slows down casual use of a
-            shared device. Use admin mode on a trusted device that only the coach uses.
+            Only the coach can sign in to record results, manage players and publish. Signing in needs the coach’s password; the password itself is not
+            stored anywhere in the website, only a one-way fingerprint of it.
+          </p>
+          <p className="mb-0">
+            What the team sees changes only when the coach <strong>publishes</strong>, and publishing needs a GitHub access key that exists only on the
+            coach’s own device. So even someone who got past the sign-in screen on their own phone could only change a private copy in their own browser —
+            never the results everyone sees.
           </p>
         </section>
 
         <section className="card">
-          <h2>Sharing results with the team</h2>
+          <h2>How everyone sees the results</h2>
           <p>
-            Visitors to the website see the coach’s results only after they are <strong>published</strong>: the coach downloads a published-results
-            file (Admin → Backup &amp; data) and uploads it to the website’s GitHub repository as <code>public/data/snapshot.json</code>. The site
-            rebuilds automatically and everyone then sees the updated standings. See the README for step-by-step instructions.
+            After a training or match day the coach presses <strong>Publish results</strong> (Admin → Publish &amp; backup). The app saves the results to
+            the website’s GitHub repository, the website rebuilds automatically, and about two minutes later everyone — wherever they are — sees the new
+            standings, results and statistics. Pages that are already open refresh when the viewer returns to them.
           </p>
           <Link to="/admin/data" className="btn btn-sm">
-            Go to Backup &amp; data
+            Go to Publish &amp; backup
           </Link>
         </section>
       </div>

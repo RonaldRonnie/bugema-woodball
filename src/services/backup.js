@@ -3,10 +3,13 @@
 
 import { APP_VERSION, SCHEMA_VERSION } from '../data/defaults.js'
 import { migrate, normalizeDataset, validateDataset } from './storage.js'
-import { blobToDataURL, dataURLToBlob, isImageDataURL, referencedImageIds } from '../lib/images.js'
+import { blobToDataURL, dataURLToBlob, isImageDataURL, imageSourceToDataURL, referencedImageIds } from '../lib/images.js'
 import { getImage, putImage, isImageStoreAvailable } from './imageStore.js'
 
 export const BACKUP_FORMAT = 'bu-woodball-backup'
+
+// Published photos are separate files on the site, e.g. data/images/img-abc.jpg
+const IMAGE_FILE_PATH = /^data\/images\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/
 const MAX_BACKUP_BYTES = 60 * 1024 * 1024
 
 export class BackupError extends Error {
@@ -27,7 +30,7 @@ export async function createBackup(data, { includeImages = true, snapshotImages 
     for (const id of referencedImageIds(data)) {
       try {
         if (snapshotImages?.[id]) {
-          images[id] = snapshotImages[id]
+          images[id] = await imageSourceToDataURL(snapshotImages[id])
           continue
         }
         if (!isImageStoreAvailable()) {
@@ -79,10 +82,12 @@ export function parseBackupText(text) {
 
   let rawData
   let images = {}
+  let imageFiles = {}
   let exportedAt = null
   if (parsed.format === BACKUP_FORMAT) {
     rawData = parsed.data
     images = parsed.images && typeof parsed.images === 'object' ? parsed.images : {}
+    imageFiles = parsed.imageFiles && typeof parsed.imageFiles === 'object' ? parsed.imageFiles : {}
     exportedAt = parsed.exportedAt || null
   } else if (Array.isArray(parsed.players) && Array.isArray(parsed.groups)) {
     rawData = parsed // a bare dataset is accepted too
@@ -105,7 +110,12 @@ export function parseBackupText(text) {
   for (const [id, url] of Object.entries(images)) {
     if (typeof id === 'string' && isImageDataURL(url)) cleanImages[id] = url
   }
-  return { data, images: cleanImages, exportedAt, summary: summariseData(data) }
+  // Only plain relative paths inside data/images/ are accepted.
+  const cleanFiles = {}
+  for (const [id, path] of Object.entries(imageFiles)) {
+    if (typeof path === 'string' && IMAGE_FILE_PATH.test(path)) cleanFiles[id] = path
+  }
+  return { data, images: cleanImages, imageFiles: cleanFiles, exportedAt, summary: summariseData(data) }
 }
 
 export async function readBackupFile(file) {

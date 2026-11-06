@@ -85,3 +85,18 @@ export function referencedImageIds(data) {
   for (const t of data?.teamPhotos || []) if (t.imageId) ids.add(t.imageId)
   return ids
 }
+
+/** Downloads an image from a URL (e.g. a published photo) as a Blob. */
+export async function fetchImageBlob(url) {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Photo could not be downloaded (${res.status}).`)
+  const blob = await res.blob()
+  if (!blob.type.startsWith('image/')) throw new Error('Downloaded file is not an image.')
+  return blob
+}
+
+/** A data URL for an image source that may be a data URL or a normal URL. */
+export async function imageSourceToDataURL(src) {
+  if (isImageDataURL(src)) return src
+  return blobToDataURL(await fetchImageBlob(src))
+}

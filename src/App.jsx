@@ -38,7 +38,7 @@ class ErrorBoundary extends Component {
         <h1>Something went wrong</h1>
         <p>
           The page hit an unexpected error. Your saved data has not been changed. Try reloading; if the problem
-          continues, download a backup from Admin → Backup &amp; data.
+          continues, download a backup from Admin → Publish &amp; backup.
         </p>
         <pre className="small muted" style={{ whiteSpace: 'pre-wrap' }}>
           {String(this.state.error?.message || this.state.error)}

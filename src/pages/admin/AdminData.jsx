@@ -5,6 +5,7 @@ import { useTitle } from '../../components/Layout.jsx'
 import { PageHeader, Banner } from '../../components/common.jsx'
 import Icon from '../../components/Icons.jsx'
 import { BackupReminder } from './AdminHome.jsx'
+import PublishPanel from '../../components/PublishPanel.jsx'
 import { createBackup, readBackupFile, summariseData, backupFileName } from '../../services/backup.js'
 import { SNAPSHOT_PATH } from '../../services/snapshot.js'
 import { DATA_KEY, datasetSizeBytes, listUnreadableCopies } from '../../services/storage.js'
@@ -98,7 +99,7 @@ function StorageStatus() {
 }
 
 function BackupCard() {
-  const { data, source, snapshotImages, recordBackup } = useData()
+  const { data, source, snapshotImages, updateMeta } = useData()
   const toast = useToast()
   const [includePhotos, setIncludePhotos] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -108,7 +109,7 @@ function BackupCard() {
     try {
       const backup = await createBackup(data, { includeImages: includePhotos, snapshotImages })
       downloadText(JSON.stringify(backup), backupFileName(), 'application/json')
-      if (source === 'local') recordBackup({ lastBackupAt: backup.exportedAt, lastBackupRevision: data.revision })
+      if (source === 'local') updateMeta({ lastBackupAt: backup.exportedAt, lastBackupRevision: data.revision })
       toast.success(
         `Backup downloaded${includePhotos ? ` with ${Object.keys(backup.images).length} photo(s)` : ''}.${backup.missingImages ? ` ${backup.missingImages} photo(s) could not be read.` : ''}`,
       )
@@ -140,7 +141,7 @@ function BackupCard() {
 }
 
 function RestoreCard() {
-  const { data, source, replaceAll, recordBackup } = useData()
+  const { data, source, replaceAll, updateMeta } = useData()
   const toast = useToast()
   const confirm = useConfirm()
   const [busy, setBusy] = useState(false)
@@ -186,7 +187,7 @@ function RestoreCard() {
     setBusy(true)
     try {
       const { restoredImages } = await replaceAll(parsed)
-      recordBackup({ lastBackupAt: parsed.exportedAt || new Date().toISOString(), lastBackupRevision: parsed.data.revision })
+      updateMeta({ lastBackupAt: parsed.exportedAt || new Date().toISOString(), lastBackupRevision: parsed.data.revision })
       toast.success(`Backup restored: ${parsed.summary.players} players, ${parsed.summary.matches} matches${restoredImages ? `, ${restoredImages} photos` : ''}.`)
     } catch (err) {
       toast.error(`Restore failed — your previous data is unchanged. ${err.message}`)
@@ -212,19 +213,18 @@ function RestoreCard() {
   )
 }
 
-function PublishCard() {
+function PublishedCopyCard() {
   const { data, source, snapshot, snapshotImages, adoptSnapshot, discardLocal } = useData()
   const toast = useToast()
   const confirm = useConfirm()
   const [busy, setBusy] = useState(false)
-  const [includePhotos, setIncludePhotos] = useState(true)
 
   const download = async () => {
     setBusy(true)
     try {
-      const snap = await createBackup(data, { includeImages: includePhotos, snapshotImages })
+      const snap = await createBackup(data, { includeImages: true, snapshotImages })
       downloadText(JSON.stringify(snap), 'snapshot.json', 'application/json')
-      toast.success('snapshot.json downloaded — upload it to the repository to publish.')
+      toast.success('snapshot.json downloaded.')
     } catch (e) {
       toast.error(e.message)
     } finally {
@@ -244,7 +244,7 @@ function PublishCard() {
       await adoptSnapshot()
       toast.success('Published results loaded into this browser.')
     } catch (e) {
-      toast.error(e.message)
+      toast.error(`Could not load the published results — nothing was changed. ${e.message}`)
     }
   }
 
@@ -262,37 +262,21 @@ function PublishCard() {
 
   return (
     <section className="card span-2">
-      <h2>Publish results for the team</h2>
+      <h2>Published results on the website</h2>
       <p className="small">
-        Records are stored only on this device, so visitors to the website cannot see them until you publish a copy. Publishing uses a plain file in the
-        GitHub repository — no database or server.
-      </p>
-      <ol className="small">
-        <li>Download the published-results file below (it is named <code>snapshot.json</code>).</li>
-        <li>
-          On GitHub, open the repository, go to the <code>public/data</code> folder, choose <strong>Add file → Upload files</strong>, upload{' '}
-          <code>snapshot.json</code> (replacing the old one) and commit.
-        </li>
-        <li>The site rebuilds automatically within a few minutes. Visitors then see the updated results.</li>
-      </ol>
-      <label className="check small">
-        <input type="checkbox" checked={includePhotos} onChange={(e) => setIncludePhotos(e.target.checked)} />
-        Include photos (they become public on the website)
-      </label>
-      <div className="row mt-1">
-        <button type="button" className="btn btn-accent" onClick={download} disabled={busy}>
-          <Icon name="download" /> {busy ? 'Preparing…' : 'Download snapshot.json'}
-        </button>
-      </div>
-      <p className="small muted mt-1 mb-0">
         {snapshot
-          ? `Published results found on this website: made ${formatDateTime(snapshot.exportedAt)} (${snapshot.summary.matches} matches). Expected at ${SNAPSHOT_PATH}.`
-          : `No published results were found on this website yet (expected at ${SNAPSHOT_PATH}).`}
+          ? `The website currently shows results published ${formatDateTime(snapshot.exportedAt)} (${snapshot.summary?.matches ?? 0} matches).`
+          : `No results have been published yet (the website looks for ${SNAPSHOT_PATH}).`}
       </p>
-      <div className="row mt-1">
-        {snapshot && source === 'local' && (
+      <div className="row">
+        {snapshot && source !== 'snapshot' && (
           <button type="button" className="btn btn-sm" onClick={loadPublished}>
-            Load published results into this browser
+            Load the published results into this browser
+          </button>
+        )}
+        {snapshot && source === 'snapshot' && (
+          <button type="button" className="btn btn-sm btn-primary" onClick={loadPublished}>
+            Copy the published results into this browser to edit them
           </button>
         )}
         {source === 'local' && (
@@ -301,6 +285,22 @@ function PublishCard() {
           </button>
         )}
       </div>
+      <details className="table-toggle mt-1">
+        <summary>Manual publishing (without an access key)</summary>
+        <ol className="small">
+          <li>
+            Download <code>snapshot.json</code> below (photos included).
+          </li>
+          <li>
+            On GitHub, open the repository → <code>public/data</code> → <strong>Add file → Upload files</strong>, upload it (replacing the old one) and
+            commit.
+          </li>
+          <li>The website updates for everyone in about 2 minutes.</li>
+        </ol>
+        <button type="button" className="btn btn-sm" onClick={download} disabled={busy}>
+          <Icon name="download" /> {busy ? 'Preparing…' : 'Download snapshot.json'}
+        </button>
+      </details>
     </section>
   )
 }
@@ -353,16 +353,17 @@ function Recovery() {
 }
 
 export default function AdminData() {
-  useTitle('Backup & data')
+  useTitle('Publish & backup')
   return (
     <>
-      <PageHeader title="Backup & data" subtitle="Your safety net: browser storage is not synchronised and can be cleared." />
+      <PageHeader title="Publish & backup" subtitle="Publish results for the team, and keep backups — browser storage is not synchronised and can be cleared." />
       <BackupReminder />
       <Recovery />
       <div className="grid-2">
+        <PublishPanel />
         <BackupCard />
         <RestoreCard />
-        <PublishCard />
+        <PublishedCopyCard />
         <StorageStatus />
         <DangerZone />
       </div>
