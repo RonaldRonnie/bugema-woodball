@@ -20,7 +20,7 @@ describe('admin password', () => {
 })
 
 // Minimal fake of the parts of the GitHub API used for publishing.
-function fakeGitHub({ existingPhotos = [], failRefUpdateOnce = false, status } = {}) {
+function fakeGitHub({ existingPhotos = [], failRefUpdateOnce = false, status, readOnly = false } = {}) {
   const calls = []
   let refUpdates = 0
   const json = (body, code = 200) => ({ ok: code < 300, status: code, json: async () => body })
@@ -30,6 +30,7 @@ function fakeGitHub({ existingPhotos = [], failRefUpdateOnce = false, status } =
     const body = opts.body ? JSON.parse(opts.body) : null
     calls.push({ method, path, body, auth: opts.headers?.Authorization })
     if (status) return json({ message: 'nope' }, status)
+    if (readOnly && method !== 'GET') return json({ message: 'Resource not accessible by personal access token' }, 403)
     if (method === 'GET' && path === '/repos/coach/site') return json({ full_name: 'coach/site', private: false, permissions: { push: true } })
     if (method === 'GET' && path === '/repos/coach/site/git/ref/heads/main') return json({ object: { sha: 'base1' } })
     if (method === 'GET' && path === '/repos/coach/site/git/commits/base1') return json({ tree: { sha: 'tree1' } })
@@ -117,6 +118,14 @@ describe('publishing to GitHub', () => {
     await expect(publishResults(data, { ...SETTINGS, token: '' })).rejects.toThrow(/not set up/)
     vi.stubGlobal('fetch', fakeGitHub({ status: 404 }).fetchImpl)
     await expect(testConnection(SETTINGS)).rejects.toThrow(/not found/)
+  })
+
+  it('catches a read-only access key when saving it, before any publish', async () => {
+    const gh = fakeGitHub({ readOnly: true })
+    vi.stubGlobal('fetch', gh.fetchImpl)
+    await expect(testConnection(SETTINGS)).rejects.toThrow(/not allowed to change it.*Contents to “Read and write”/s)
+    // the check only creates an unattached blob: no tree, commit or branch change
+    expect(gh.calls.some((c) => /git\/(trees|commits|refs)/.test(c.path) && c.method !== 'GET')).toBe(false)
   })
 
   it('checks the connection and reports the website update', async () => {

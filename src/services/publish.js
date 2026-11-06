@@ -61,7 +61,14 @@ export function clearPublishSettings() {
 
 function describe(status, detail) {
   if (status === 401) return 'GitHub did not accept the access key. It may be mistyped, expired or revoked — create a new key and save it again.'
-  if (status === 403) return `The access key is not allowed to do this. Give it “Contents: Read and write” permission for this repository.${detail ? ` (${detail})` : ''}`
+  if (status === 403) {
+    return (
+      'The access key can read the repository but is not allowed to change it. On GitHub, edit the key (Settings → Developer settings → ' +
+      'Fine-grained tokens → your key): set Repository access to “Only select repositories” → this repository, and Repository permissions → ' +
+      'Contents to “Read and write”, then save. The key stays the same, so just publish again.' +
+      (detail ? ` (GitHub said: ${detail})` : '')
+    )
+  }
   if (status === 404) return 'Repository or branch not found, or the access key cannot see it. Check the owner and repository name, and that the key was given access to this repository.'
   if (status === 409) return 'The repository is busy or empty. Wait a moment and try again.'
   if (status === 422) return `GitHub rejected the update${detail ? `: ${detail}` : '.'}`
@@ -99,13 +106,22 @@ const seg = (v) => encodeURIComponent(v)
 const repoPath = (s) => `/repos/${seg(s.owner)}/${seg(s.repo)}`
 const branchRef = (s) => s.branch.split('/').map(seg).join('/')
 
-/** Checks the settings work: repository reachable, branch exists, writing allowed. */
+/**
+ * Checks the settings work: repository reachable, branch exists, and the
+ * key is really allowed to WRITE. Reading a public repository works with
+ * any key, so writing is tested by storing a tiny unattached object
+ * (a "blob"): it changes no file, branch or page, and GitHub discards it.
+ */
 export async function testConnection(settings) {
   const repo = await api(settings, repoPath(settings))
   if (repo.permissions && !repo.permissions.push) {
     throw new PublishError('This GitHub account can read the repository but not change it.')
   }
   await api(settings, `${repoPath(settings)}/git/ref/heads/${branchRef(settings)}`)
+  await api(settings, `${repoPath(settings)}/git/blobs`, {
+    method: 'POST',
+    body: { content: 'Woodball publishing permission check', encoding: 'utf-8' },
+  })
   return { fullName: repo.full_name, isPrivate: repo.private }
 }
 
