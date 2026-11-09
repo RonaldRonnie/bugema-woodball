@@ -8,6 +8,7 @@ import { isValidISODate } from '../lib/dates.js'
 import { FAIRWAY_COUNT, emptyFairways } from '../lib/scoring.js'
 import { TIE_BREAKER_OPTIONS } from '../data/defaults.js'
 import { MAX_STROKE_VALUE } from '../services/storage.js'
+import { seedCards, syncCards } from '../lib/cards.js'
 
 export class ActionError extends Error {
   constructor(message) {
@@ -85,6 +86,7 @@ export function deletePlayer(draft, id) {
   draft.players = draft.players.filter((x) => x.id !== id)
   for (const m of draft.matches) {
     m.participants = m.participants.filter((x) => x.playerId !== id)
+    m.cards = (m.cards || []).map((c) => ({ ...c, playerIds: c.playerIds.filter((x) => x !== id) })).filter((c) => c.playerIds.length)
     for (const r of m.rounds) delete r.scores[id]
   }
   return p.photoId
@@ -149,6 +151,27 @@ export function assignPlayers(draft, playerIds, groupId) {
 
 // ----------------------------------------------------------------- matches
 
+/**
+ * Playing cards for a match, kept consistent with its line-up: only line-up
+ * players, each on one card, no empty cards. Players missing from the cards
+ * are placed on one. An empty list means the match has no cards.
+ * Accepts cards as { playerIds } objects or plain arrays of player IDs.
+ */
+function normaliseCards(cards, participants) {
+  if (!Array.isArray(cards)) throw new ActionError('Invalid playing cards.')
+  if (!cards.length || !participants.length) return []
+  const lists = cards.map((c) => {
+    const ids = Array.isArray(c) ? c : c?.playerIds
+    if (!Array.isArray(ids)) throw new ActionError('Invalid playing cards.')
+    return ids
+  })
+  const lineup = new Set(participants.map((p) => p.playerId))
+  const kept = lists.some((ids) => ids.some((pid) => lineup.has(pid)))
+  // When nobody on the old cards is still playing, deal fresh cards.
+  const result = kept ? syncCards(lists, participants) : seedCards(participants)
+  return result.map((playerIds) => ({ playerIds }))
+}
+
 function normaliseMatchInput(draft, input, existing = null) {
   const date = input.date ?? existing?.date
   if (!isValidISODate(date)) throw new ActionError('Please choose a valid match date.')
@@ -184,6 +207,7 @@ function normaliseMatchInput(draft, input, existing = null) {
     type,
     groupIds,
     participants,
+    cards: normaliseCards(input.cards !== undefined ? input.cards : existing?.cards ?? [], participants),
     outcomeMode,
     manualResults,
     title: clean(input.title ?? existing?.title, 120),

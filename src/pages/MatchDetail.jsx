@@ -8,6 +8,7 @@ import Icon from '../components/Icons.jsx'
 import { computeOutcome, hasResult, roundTotal, isRoundComplete, FAIRWAY_COUNT, POINTS } from '../lib/scoring.js'
 import { formatDate } from '../lib/dates.js'
 import { formatAvg, sameDayIndex } from '../lib/stats.js'
+import { MatchCards } from '../components/PlayingCards.jsx'
 
 export default function MatchDetail() {
   const { matchId } = useParams()
@@ -23,6 +24,9 @@ export default function MatchDetail() {
   }
   const { index, count } = sameDayIndex(data.matches, match)
   const rounds = [...match.rounds].sort((a, b) => a.number - b.number)
+  // Before play starts the cards are what people come to see, so show them first.
+  const started = match.rounds.some((r) => Object.keys(r.scores).length > 0)
+  const cards = <MatchCards match={match} playersById={playersById} groupsById={groupsById} />
 
   return (
     <>
@@ -51,6 +55,7 @@ export default function MatchDetail() {
       />
 
       <div className="stack">
+        {!started && cards}
         <section className="card">
           <div className="card-header">
             <h2>Outcome</h2>
@@ -122,6 +127,8 @@ export default function MatchDetail() {
             </p>
           )}
         </section>
+
+        {started && cards}
 
         {rounds.map((round) => (
           <section key={round.id} className="card card-flush">

@@ -17,9 +17,10 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 7. [Backup and restore](#backup-and-restore)
 8. [Limitations of browser-based storage](#limitations-of-browser-based-storage)
 9. [Admin password and security](#admin-password-and-security)
-10. [How scoring works](#how-scoring-works)
-11. [Testing](#testing)
-12. [Project structure](#project-structure)
+10. [Playing cards](#playing-cards)
+11. [How scoring works](#how-scoring-works)
+12. [Testing](#testing)
+13. [Project structure](#project-structure)
 
 ---
 
@@ -29,6 +30,7 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 - **Groups A, B and C** pre-loaded with the full roster (45 players, names exactly as supplied). Groups can be added, renamed, recoloured and given photos.
 - **Player management**: register, edit, deactivate or delete players, move them between groups (one at a time or in bulk), upload photos, and search and filter. Every player has a unique internal ID.
 - **Match and score recording**: date, competitive match or practice, participating groups, line-up, any number of rounds, notes, and an automatic or manual result. Each round has **12 fairway score fields** per player, and totals are calculated automatically. Several matches and rounds can be recorded on the same day.
+- **Playing cards**: when a match is created, the line-up is seeded at random into cards of 4 — 2 players from one group and 1 from each other group. Once published, everyone can see who they are playing with on the match page, the home page and their own player page.
 - **Mobile-friendly score entry**: player-by-player cards with an on-screen keypad and automatic advance to the next fairway, or a spreadsheet-style table on larger screens. Every value is saved as soon as it is entered.
 - **Points and leaderboard**: Win 3 · Draw 1 · Loss 0, with configurable tie-breakers. Editing or deleting results recalculates everything immediately.
 - **Statistics** for each player (matches, rounds, total strokes, average, best round, history, fairway-by-fairway scores) and each group, filtered by day, week, month, custom range or all time.
@@ -97,6 +99,8 @@ VITE_BASE_PATH=/bugema-woodball/ npm run build
 
 1. Tap **Admin** (bottom bar on phones, top right on computers) and sign in with the coach password.
 2. **Record a match**: Admin → *Record a match* → choose the date, *Competitive match* or *Practice*, the groups and the line-up → *Create match & enter scores*.
+   - **Playing cards** are seeded automatically below the line-up (see [Playing cards](#playing-cards)). Tap **Reshuffle** for a new draw, or use a player's *Card* menu to move them. Untick *Seed players into cards* if a session does not need cards.
+   - **Publish** straight after creating the match so the players can see their cards before they play.
 3. **Enter scores**: tap a player, then tap the score for each fairway on the keypad. The cursor moves to the next fairway on its own; for a two-digit score such as 12, tap 1 then 2. The total updates as you go and every value is saved immediately. Use *Next player* to continue, and *Add round* for further rounds.
 4. **Fix mistakes**: tap any fairway and enter the right number. Delete a whole round or match from the match screen, or clear one player's card with *Clear / absent*. Standings recalculate automatically.
 5. **Players and groups**: Admin → *Players* to register, edit, deactivate or delete players, add photos and move players between groups. Admin → *Groups* to manage groups.
@@ -175,6 +179,16 @@ What actually protects the results: the sign-in check runs in the browser, so a 
 
 Use a password you don't use anywhere else. A longer passphrase is stronger.
 
+## Playing cards
+
+A card is the group of players who go round the course together and share one scorecard.
+
+- **Seeding**: cards of 4 players, mixed across the competing groups. With three groups, each card has **2 players from one group and 1 from each of the other two**; with two groups, 2 + 2. Players are dealt at random, and each group's players are spread as evenly as possible over the cards.
+- **Numbers that don't divide by 4**: some cards have 3 players (one from each group), so nobody plays alone. For example, the full squad of 45 (17 + 13 + 15) gives 9 cards of 4 and 3 cards of 3.
+- **Changing the line-up**: until you move a player by hand, the cards are dealt again whenever the line-up changes. After a hand move, or once the match is saved, everyone keeps their card: players who drop out are taken off, and newcomers join a card with room. If every card is full, a newcomer starts a new card, and the form flags any card that has fewer than 3 or more than 4 players.
+- **Where players see them**: the match page lists every card, with a *Find your name* box and a *Share / Copy list* button for WhatsApp. The home page shows *Playing cards are out* for upcoming matches, and each player's page shows their card and who they play with.
+- **Scoring**: score entry lists players card by card, so each paper scorecard can be entered in one go. Cards do not affect results or points.
+
 ## How scoring works
 
 - A round has 12 fairways. **Total strokes** is the sum of the fairway scores, and fewer is better.
@@ -195,7 +209,7 @@ Use a password you don't use anywhere else. A longer passphrase is stronger.
 npm test
 ```
 
-Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
+Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, playing-card seeding (the 2 + 1 + 1 rule over hundreds of random line-ups), individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
 
 The GitHub Actions workflow runs these tests before every deployment, and a failing test stops the deploy.
 
@@ -206,7 +220,7 @@ The GitHub Actions workflow runs these tests before every deployment, and a fail
 ```
 src/
   data/          seed roster and default settings
-  lib/           pure logic: scoring, statistics, dates, CSV, PDF, images,
+  lib/           pure logic: scoring, statistics, playing cards, dates, CSV, PDF, images,
                  auth.js (admin password fingerprint)
   services/      storage.js (LocalStorage persistence, validation, migrations),
                  imageStore.js (IndexedDB photos), backup.js, snapshot.js,

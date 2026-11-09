@@ -69,6 +69,7 @@ export default function AdminMatches() {
                           <MatchTypeTag match={m} />
                           <span>
                             {m.participants.length} players · {m.rounds.length} round{m.rounds.length === 1 ? '' : 's'}
+                            {m.cards?.length > 0 && ` · ${m.cards.length} card${m.cards.length === 1 ? '' : 's'}`}
                           </span>
                           <span className={p.done === p.expected && p.expected ? 'tag tag-ok' : 'tag tag-warn'}>
                             {p.done}/{p.expected} scorecards complete

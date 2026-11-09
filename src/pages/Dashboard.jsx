@@ -8,6 +8,43 @@ import { GroupTrendChart, PointsChart } from '../components/charts.jsx'
 import { StoredImage, DefaultMark } from '../components/media.jsx'
 import { computeStandings, sortMatches } from '../lib/scoring.js'
 import { teamSummary, allPlayerStats, groupTrend, formatAvg } from '../lib/stats.js'
+import { upcomingCardMatches } from '../lib/cards.js'
+import { formatDate, todayISO } from '../lib/dates.js'
+import Icon from '../components/Icons.jsx'
+
+/** Upcoming matches whose playing cards are out. */
+function UpcomingCards({ matches, groupsById }) {
+  if (!matches.length) return null
+  return (
+    <section className="card card-flush" aria-labelledby="upcoming-title">
+      <div className="card-header">
+        <div>
+          <h2 id="upcoming-title">Playing cards are out</h2>
+          <p className="card-sub">See who you are playing with</p>
+        </div>
+      </div>
+      <div className="list">
+        {matches.map((m) => (
+          <Link key={m.id} to={`/matches/${m.id}`} className="list-item">
+            <div className="list-main">
+              <div className="list-title">{m.title || m.groupIds.map((g) => groupsById[g]?.name).join(' vs ')}</div>
+              <div className="list-meta">
+                <span>{formatDate(m.date, { weekday: true })}</span>
+                {m.venue && <span>{m.venue}</span>}
+                <span>
+                  {m.cards.length} card{m.cards.length === 1 ? '' : 's'} · {m.participants.length} players
+                </span>
+              </div>
+            </div>
+            <span className="list-end small strong nowrap">
+              View cards <Icon name="next" width="16" height="16" />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 function Hero({ settings, photo }) {
   return (
@@ -41,11 +78,14 @@ export default function Dashboard() {
   const players = useMemo(() => allPlayerStats(data), [data])
   const trend = useMemo(() => groupTrend(data), [data])
   const recent = useMemo(() => sortMatches(data.matches, 'desc').slice(0, 5), [data])
+  const upcoming = useMemo(() => upcomingCardMatches(data.matches, todayISO()).slice(0, 3), [data])
   const [heroPhoto, ...galleryPhotos] = data.teamPhotos
 
   return (
     <div className="stack">
       <Hero settings={data.settings} photo={heroPhoto} />
+
+      <UpcomingCards matches={upcoming} groupsById={groupsById} />
 
       <section className="stat-grid" aria-label="Team totals">
         <StatTile label="Players" value={summary.activePlayers} note={`${summary.totalGroups} groups · ${summary.totalPlayers} registered`} />

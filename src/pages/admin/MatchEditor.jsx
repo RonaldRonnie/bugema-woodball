@@ -6,6 +6,9 @@ import { useTitle } from '../../components/Layout.jsx'
 import { PageHeader, EmptyState, Banner } from '../../components/common.jsx'
 import { todayISO } from '../../lib/dates.js'
 import { countScoresForPlayers } from '../../state/actions.js'
+import { seedCards, syncCards } from '../../lib/cards.js'
+import { CardsEditor } from '../../components/PlayingCards.jsx'
+import Icon from '../../components/Icons.jsx'
 
 function autoTitle(type, groupIds, groupsById) {
   const names = groupIds.map((g) => groupsById[g]?.name).filter(Boolean)
@@ -16,7 +19,7 @@ export default function MatchEditor() {
   const { matchId } = useParams()
   const navigate = useNavigate()
   const { data, commit, actions } = useData()
-  const { groupsById } = useLookups()
+  const { groupsById, playersById } = useLookups()
   const confirm = useConfirm()
   const existing = matchId ? data.matches.find((m) => m.id === matchId) : null
   const isNew = !matchId
@@ -34,6 +37,8 @@ export default function MatchEditor() {
           notes: existing.notes,
           outcomeMode: existing.outcomeMode,
           manualResults: existing.manualResults || {},
+          useCards: existing.cards.length > 0,
+          cards: existing.cards.map((c) => c.playerIds),
         }
       : {
           date: todayISO(),
@@ -45,8 +50,14 @@ export default function MatchEditor() {
           notes: '',
           outcomeMode: 'auto',
           manualResults: {},
+          useCards: true,
+          cards: [],
         },
   )
+  // Until the coach moves someone by hand, cards are dealt afresh whenever the
+  // line-up changes. Saved cards (and hand-made changes) are kept instead:
+  // players who leave are taken off, newcomers join a card with room.
+  const [keepCards, setKeepCards] = useState(Boolean(existing?.cards.length))
   const [error, setError] = useState('')
   const set = (patch) => {
     setForm((f) => ({ ...f, ...patch }))
@@ -54,6 +65,12 @@ export default function MatchEditor() {
   }
 
   const inLineup = useMemo(() => new Set(form.participants.map((p) => p.playerId)), [form.participants])
+
+  /** The line-up change plus matching cards. */
+  const withLineup = (participants) => {
+    if (!form.useCards) return { participants }
+    return { participants, cards: keepCards ? syncCards(form.cards, participants) : seedCards(participants) }
+  }
 
   if (matchId && !existing) {
     return <EmptyState title="Match not found" action={<Link to="/admin/matches" className="btn">Back to matches</Link>} />
@@ -67,19 +84,37 @@ export default function MatchEditor() {
       // Newly selected group: start with all its active players in the line-up.
       participants = [...participants, ...data.players.filter((p) => p.groupId === gid && p.active).map((p) => ({ playerId: p.id, groupId: gid }))]
     }
-    set({ groupIds, participants })
+    set({ groupIds, ...withLineup(participants) })
   }
 
   const togglePlayer = (playerId, groupId) => {
-    set({
-      participants: inLineup.has(playerId) ? form.participants.filter((p) => p.playerId !== playerId) : [...form.participants, { playerId, groupId }],
-    })
+    set(withLineup(inLineup.has(playerId) ? form.participants.filter((p) => p.playerId !== playerId) : [...form.participants, { playerId, groupId }]))
   }
 
   const setAll = (gid, on) => {
     const others = form.participants.filter((p) => p.groupId !== gid)
     const members = on ? data.players.filter((p) => p.groupId === gid && p.active).map((p) => ({ playerId: p.id, groupId: gid })) : []
-    set({ participants: [...others, ...members] })
+    set(withLineup([...others, ...members]))
+  }
+
+  const reshuffle = () => {
+    set({ cards: seedCards(form.participants) })
+    setKeepCards(false)
+  }
+
+  const toggleCards = (on) => {
+    set({ useCards: on, cards: on ? seedCards(form.participants) : [] })
+    setKeepCards(false)
+  }
+
+  const moveToCard = (playerId, target) => {
+    const from = form.cards.findIndex((c) => c.includes(playerId))
+    if (from === target) return
+    const cards = form.cards.map((c, i) => (i === from ? c.filter((x) => x !== playerId) : [...c]))
+    if (target === 'new') cards.push([playerId])
+    else cards[target].push(playerId)
+    set({ cards: cards.filter((c) => c.length) })
+    setKeepCards(true)
   }
 
   const submit = async (e) => {
@@ -107,10 +142,15 @@ export default function MatchEditor() {
       }
     }
 
-    const input = { ...form, title: form.title.trim() || autoTitle(form.type, form.groupIds, groupsById) }
+    const { useCards, ...fields } = form
+    const input = { ...fields, cards: useCards ? form.cards : [], title: form.title.trim() || autoTitle(form.type, form.groupIds, groupsById) }
+    const cardNote = useCards && form.cards.length ? ' Publish the results so players can see their cards.' : ''
     const res = existing
-      ? commit((d) => actions.updateMatch(d, existing.id, input), { success: 'Match details saved.', quiet: true })
-      : commit((d) => actions.createMatch(d, input), { success: 'Match created — now enter the scores.', quiet: true })
+      ? commit((d) => actions.updateMatch(d, existing.id, input), { success: `Match details saved.${cardNote}`, quiet: true })
+      : commit((d) => actions.createMatch(d, input), {
+          success: cardNote ? `Match created with ${form.cards.length} playing cards.${cardNote}` : 'Match created — now enter the scores.',
+          quiet: true,
+        })
     if (!res.ok) return setError(res.error)
     navigate(existing ? `/admin/matches` : `/admin/matches/${res.value}/scores`)
   }
@@ -226,6 +266,46 @@ export default function MatchEditor() {
                 )
               })}
             </div>
+          </section>
+        )}
+
+        {form.participants.length > 0 && (
+          <section className="card" aria-labelledby="cards-heading">
+            <div className="card-header">
+              <div>
+                <h2 id="cards-heading">Playing cards</h2>
+                <p className="card-sub">
+                  {form.useCards
+                    ? `${form.cards.length} card${form.cards.length === 1 ? '' : 's'} · players who go round together and share a scorecard`
+                    : 'Players are not put on cards for this match.'}
+                </p>
+              </div>
+              <label className="check small">
+                <input type="checkbox" checked={form.useCards} onChange={(e) => toggleCards(e.target.checked)} />
+                Seed players into cards
+              </label>
+            </div>
+            {form.useCards && (
+              <>
+                <div className="row-between" style={{ marginBottom: 12 }}>
+                  <p className="small muted mb-0" style={{ flex: '1 1 260px' }}>
+                    Dealt at random into cards of 4: 2 players from one group and 1 from each other group. When the numbers don’t divide by 4, some
+                    cards have 3 players (one per group). Use a player’s card menu to move them.
+                  </p>
+                  <button type="button" className="btn btn-sm" onClick={reshuffle}>
+                    <Icon name="shuffle" /> Reshuffle
+                  </button>
+                </div>
+                <CardsEditor
+                  groupIds={form.groupIds}
+                  participants={form.participants}
+                  cards={form.cards}
+                  playersById={playersById}
+                  groupsById={groupsById}
+                  onMove={moveToCard}
+                />
+              </>
+            )}
           </section>
         )}
 

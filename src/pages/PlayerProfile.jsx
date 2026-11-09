@@ -10,13 +10,58 @@ import { PlayerAvatar } from '../components/media.jsx'
 import ExportButtons from '../components/ExportButtons.jsx'
 import Icon from '../components/Icons.jsx'
 import { playerStats, allPlayerStats, formatAvg } from '../lib/stats.js'
-import { formatDate } from '../lib/dates.js'
+import { formatDate, todayISO } from '../lib/dates.js'
 import { FAIRWAY_COUNT } from '../lib/scoring.js'
+import { upcomingCardMatches, describeCards } from '../lib/cards.js'
+
+/** The player's card in upcoming matches: who they will play with. */
+function NextCards({ data, playerId, playersById, groupsById }) {
+  const entries = upcomingCardMatches(data.matches, todayISO())
+    .map((match) => {
+      const card = describeCards(match, playersById).cards.find((c) => c.players.some((e) => e.playerId === playerId))
+      return card ? { match, card } : null
+    })
+    .filter(Boolean)
+    .slice(0, 2)
+  if (!entries.length) return null
+  return (
+    <div className="stack" style={{ marginBottom: 16 }}>
+      {entries.map(({ match, card }) => {
+        const mates = card.players.filter((e) => e.playerId !== playerId)
+        return (
+          <section key={match.id} className="card" aria-label={`Card ${card.number}, ${formatDate(match.date)}`} style={{ borderLeft: '4px solid var(--gold-500)' }}>
+            <div className="card-header">
+              <div>
+                <h2>
+                  Card {card.number} · {formatDate(match.date, { weekday: true })}
+                </h2>
+                <p className="card-sub">{match.title || match.groupIds.map((g) => groupsById[g]?.name).join(' vs ')}</p>
+              </div>
+              <Link to={`/matches/${match.id}`} className="small nowrap">
+                All cards →
+              </Link>
+            </div>
+            <p className="mb-0">
+              {mates.length ? 'Playing with ' : 'No other players on this card yet.'}
+              {mates.map((e, i) => (
+                <span key={e.playerId}>
+                  {i > 0 && (i === mates.length - 1 ? ' and ' : ', ')}
+                  <Link to={`/players/${e.playerId}`}>{e.player?.name}</Link>
+                  <span className="muted"> ({groupsById[e.groupId]?.name})</span>
+                </span>
+              ))}
+            </p>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function PlayerProfile() {
   const { playerId } = useParams()
   const { data } = useData()
-  const { groupsById } = useLookups()
+  const { groupsById, playersById } = useLookups()
   const { isAdmin } = useAdmin()
   const player = data.players.find((p) => p.id === playerId)
   useTitle(player?.name || 'Player')
@@ -57,6 +102,8 @@ export default function PlayerProfile() {
           </Link>
         )}
       </div>
+
+      <NextCards data={data} playerId={player.id} playersById={playersById} groupsById={groupsById} />
 
       <DateRangeFilter state={filter} />
 

@@ -114,6 +114,7 @@ export function normalizeDataset(data) {
       notes: '',
       outcomeMode: 'auto',
       manualResults: {},
+      cards: [],
       ...m,
     })),
     teamPhotos: data.teamPhotos || [],
@@ -191,6 +192,23 @@ export function validateDataset(data) {
       if (participantIds.has(p.playerId)) err(`${label} lists a player twice.`)
       participantIds.add(p.playerId)
       if (!m.groupIds.includes(p.groupId)) err(`${label} has a player in a group that is not playing.`)
+    }
+
+    // Playing cards (optional): line-up players only, each on at most one card.
+    if (!Array.isArray(m.cards)) err(`${label} has an invalid list of playing cards.`)
+    else {
+      const onCard = new Set()
+      for (const c of m.cards) {
+        if (!c || !Array.isArray(c.playerIds) || c.playerIds.length === 0) {
+          err(`${label} has an empty or invalid playing card.`)
+          continue
+        }
+        for (const pid of c.playerIds) {
+          if (!participantIds.has(pid)) err(`${label} has a playing card with a player who is not in the line-up.`)
+          else if (onCard.has(pid)) err(`${label} puts a player on two playing cards.`)
+          onCard.add(pid)
+        }
+      }
     }
 
     if (!Array.isArray(m.rounds) || m.rounds.length === 0) {

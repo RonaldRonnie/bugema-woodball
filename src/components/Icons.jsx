@@ -54,6 +54,15 @@ const paths = {
       <circle cx="12" cy="13.5" r="3.5" />
     </>
   ),
+  shuffle: <path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />,
+  share: (
+    <>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4" />
+    </>
+  ),
   clipboard: (
     <>
       <rect x="5" y="4" width="14" height="17" rx="2" />

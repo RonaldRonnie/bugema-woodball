@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom'
 import { useData, useLookups } from '../../state/DataContext.jsx'
 import { useConfirm } from '../../state/UIContext.jsx'
@@ -10,6 +10,7 @@ import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome
 import { formatDate } from '../../lib/dates.js'
 import { formatAvg } from '../../lib/stats.js'
 import { readPref, writePref } from '../../services/storage.js'
+import { describeCards } from '../../lib/cards.js'
 
 const EMPTY_ROUND = Object.freeze(Array(FAIRWAY_COUNT).fill(null))
 
@@ -30,7 +31,7 @@ export function interpretStroke(text, max) {
 
 // ----------------------------------------------------- player-by-player card
 
-function PlayerCard({ player, group, fairways, max, keypad, onSave, onNext, onPrev, onClear, hasNext, hasPrev, position }) {
+function PlayerCard({ player, group, cardLabel, fairways, max, keypad, onSave, onNext, onPrev, onClear, hasNext, hasPrev, position }) {
   const [texts, setTexts] = useState(() => (fairways || Array(FAIRWAY_COUNT).fill(null)).map((v) => (v == null ? '' : String(v))))
   const [invalid, setInvalid] = useState(() => Array(FAIRWAY_COUNT).fill(false))
   const [active, setActive] = useState(() => {
@@ -136,7 +137,8 @@ function PlayerCard({ player, group, fairways, max, keypad, onSave, onNext, onPr
               {player.name}
             </h2>
             <div className="small muted">
-              <GroupBadge group={group} /> · player {position}
+              <GroupBadge group={group} />
+              {cardLabel && ` · ${cardLabel}`} · player {position}
             </div>
           </div>
         </div>
@@ -302,7 +304,8 @@ function ScoreCell({ value, max, onSave, onAdvance, onNav, register, label }) {
   )
 }
 
-function TableEntry({ rows, round, max, onSave, groupsById }) {
+function TableEntry({ sections, headings, round, max, onSave, groupsById }) {
+  const rows = sections.flatMap((s) => s.rows)
   const cells = useRef({})
   const focus = (r, c) => {
     const el = cells.current[`${r}:${c}`]
@@ -334,34 +337,47 @@ function TableEntry({ rows, round, max, onSave, groupsById }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ participant, player }, r) => {
-              const f = round.scores[participant.playerId]
-              return (
-                <tr key={participant.playerId}>
-                  <td className="sticky-col nowrap" style={{ minWidth: 150 }}>
-                    <span className="group-dot" style={{ background: groupsById[participant.groupId]?.color, marginRight: 6 }} aria-hidden="true" />
-                    {player?.name}
-                  </td>
-                  {Array.from({ length: FAIRWAY_COUNT }, (_, c) => (
-                    <td key={c}>
-                      <ScoreCell
-                        value={f?.[c] ?? null}
-                        max={max}
-                        label={`${player?.name}, fairway ${c + 1}`}
-                        register={(el) => (cells.current[`${r}:${c}`] = el)}
-                        onSave={(v) => onSave(participant.playerId, c, v)}
-                        onAdvance={() => nav(r, c, 'next')}
-                        onNav={(dir) => nav(r, c, dir)}
-                      />
-                    </td>
-                  ))}
-                  <td className="num strong">
-                    {f ? roundTotal(f) : '—'}
-                    {f && !isRoundComplete(f) && <span className="muted">*</span>}
-                  </td>
-                </tr>
-              )
-            })}
+            {sections.map((section) => (
+              <Fragment key={section.key}>
+                {headings && (
+                  <tr className="section-row">
+                    <th colSpan={FAIRWAY_COUNT + 2} scope="colgroup">
+                      {section.label}
+                    </th>
+                  </tr>
+                )}
+                {section.rows.map((row) => {
+                  const { participant, player } = row
+                  const r = rows.indexOf(row)
+                  const f = round.scores[participant.playerId]
+                  return (
+                    <tr key={participant.playerId}>
+                      <td className="sticky-col nowrap" style={{ minWidth: 150 }}>
+                        <span className="group-dot" style={{ background: groupsById[participant.groupId]?.color, marginRight: 6 }} aria-hidden="true" />
+                        {player?.name}
+                      </td>
+                      {Array.from({ length: FAIRWAY_COUNT }, (_, c) => (
+                        <td key={c}>
+                          <ScoreCell
+                            value={f?.[c] ?? null}
+                            max={max}
+                            label={`${player?.name}, fairway ${c + 1}`}
+                            register={(el) => (cells.current[`${r}:${c}`] = el)}
+                            onSave={(v) => onSave(participant.playerId, c, v)}
+                            onAdvance={() => nav(r, c, 'next')}
+                            onNav={(dir) => nav(r, c, dir)}
+                          />
+                        </td>
+                      ))}
+                      <td className="num strong">
+                        {f ? roundTotal(f) : '—'}
+                        {f && !isRoundComplete(f) && <span className="muted">*</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </div>
@@ -399,15 +415,34 @@ export default function ScoreEntry() {
 
   const rounds = useMemo(() => (match ? [...match.rounds].sort((a, b) => a.number - b.number) : []), [match])
   const round = rounds.find((r) => r.id === params.get('round')) || rounds[0]
-  const rows = useMemo(() => {
+  // Players listed card by card when the match has playing cards (each card
+  // hands in one scorecard), otherwise group by group.
+  const byCard = Boolean(match?.cards?.length)
+  const sections = useMemo(() => {
     if (!match) return []
-    return match.groupIds.flatMap((gid) =>
-      match.participants
+    const participantOf = new Map(match.participants.map((p) => [p.playerId, p]))
+    const toRow = (e, label) => ({ participant: participantOf.get(e.playerId), player: e.player, cardLabel: label })
+    if (match.cards?.length) {
+      const { cards, unplaced } = describeCards(match, playersById)
+      const list = cards.map((c) => ({
+        key: `card-${c.number}`,
+        label: `Card ${c.number}`,
+        rows: c.players.map((e) => toRow(e, `Card ${c.number}`)).filter((r) => r.participant),
+      }))
+      if (unplaced.length) list.push({ key: 'unplaced', label: 'Not on a card', rows: unplaced.map((e) => toRow(e, null)) })
+      return list
+    }
+    return match.groupIds.map((gid) => ({
+      key: gid,
+      label: groupsById[gid]?.name,
+      color: groupsById[gid]?.color,
+      rows: match.participants
         .filter((p) => p.groupId === gid)
-        .map((p) => ({ participant: p, player: playersById[p.playerId] }))
+        .map((p) => ({ participant: p, player: playersById[p.playerId], cardLabel: null }))
         .sort((a, b) => (a.player?.name || '').localeCompare(b.player?.name || '')),
-    )
-  }, [match, playersById])
+    }))
+  }, [match, playersById, groupsById])
+  const rows = useMemo(() => sections.flatMap((s) => s.rows), [sections])
   const playerIndex = Math.max(
     0,
     rows.findIndex((r) => r.participant.playerId === params.get('player')),
@@ -590,42 +625,42 @@ export default function ScoreEntry() {
           </section>
 
           {mode === 'table' ? (
-            <TableEntry key={round.id} rows={rows} round={round} max={max} onSave={save} groupsById={groupsById} />
+            <TableEntry key={round.id} sections={sections} headings={byCard} round={round} max={max} onSave={save} groupsById={groupsById} />
           ) : (
             <div className="entry-layout">
               <div className="entry-list">
                 <section className="card card-flush">
-                  {match.groupIds.map((gid) => (
-                    <div key={gid}>
+                  {sections.map((section) => (
+                    <div key={section.key}>
                       <div className="group-heading">
-                        <span className="group-dot" style={{ background: groupsById[gid]?.color }} aria-hidden="true" />
-                        {groupsById[gid]?.name}
+                        {section.color && <span className="group-dot" style={{ background: section.color }} aria-hidden="true" />}
+                        {section.label}
                       </div>
-                      {rows
-                        .filter((r) => r.participant.groupId === gid)
-                        .map((r) => {
-                          const st = statusOf(r.participant.playerId)
-                          return (
-                            <button
-                              key={r.participant.playerId}
-                              type="button"
-                              className="player-pick"
-                              aria-current={r === current}
-                              onClick={() => {
-                                select({ player: r.participant.playerId, round: round.id })
-                                window.scrollTo({ top: 0 })
-                              }}
-                            >
-                              <PlayerAvatar player={r.player} group={groupsById[gid]} size={32} />
-                              <span className="list-main">
-                                <span className="list-title" style={{ display: 'block' }}>
-                                  {r.player?.name}
-                                </span>
+                      {section.rows.map((r) => {
+                        const st = statusOf(r.participant.playerId)
+                        const g = groupsById[r.participant.groupId]
+                        return (
+                          <button
+                            key={r.participant.playerId}
+                            type="button"
+                            className="player-pick"
+                            aria-current={r === current}
+                            onClick={() => {
+                              select({ player: r.participant.playerId, round: round.id })
+                              window.scrollTo({ top: 0 })
+                            }}
+                          >
+                            <PlayerAvatar player={r.player} group={g} size={32} />
+                            <span className="list-main">
+                              <span className="list-title" style={{ display: 'block' }}>
+                                {r.player?.name}
                               </span>
-                              <span className={`pick-status ${st.cls}`}>{st.label}</span>
-                            </button>
-                          )
-                        })}
+                              {byCard && <span className="small muted">{g?.name}</span>}
+                            </span>
+                            <span className={`pick-status ${st.cls}`}>{st.label}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   ))}
                 </section>
@@ -635,6 +670,7 @@ export default function ScoreEntry() {
                   key={`${round.id}:${current.participant.playerId}`}
                   player={current.player}
                   group={groupsById[current.participant.groupId]}
+                  cardLabel={current.cardLabel}
                   fairways={round.scores[current.participant.playerId]}
                   max={max}
                   keypad={keypad}
