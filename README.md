@@ -106,11 +106,13 @@ VITE_BASE_PATH=/bugema-woodball/ npm run build
    - **Publish** straight after creating the match so the players can see their cards before they play.
 3. **Enter scores**: tap a player, then tap the score for each fairway on the keypad. The cursor moves to the next fairway on its own; for a two-digit score such as 12, tap 1 then 2. The total updates as you go and every value is saved immediately. Use *Next player* to continue, and *Add round* for further rounds.
    - **Or let the players keep score** (once the [score inbox](#players-keep-score-on-their-phones) is set up): one player per card scores on their phone and submits the card. Then open Admin → **Score inbox**, check each card and tap **Accept** (or **Accept all**), and publish from the same page.
-4. **Fix mistakes**: tap any fairway and enter the right number. Delete a whole round or match from the match screen, or clear one player's card with *Clear / absent*. Standings recalculate automatically.
-5. **Players and groups**: Admin → *Players* to register, edit, deactivate or delete players, add photos and move players between groups. Admin → *Groups* to manage groups.
-6. **Reports**: *Reports* → choose a period → download CSV or PDF.
-7. **Publish** after every training or match day: Admin → *Publish & backup* → **Publish results now**. Everyone sees the update in about 2 minutes.
-8. **Back up** regularly on the same page: *Download backup*.
+4. **Close the match** when play is over, even if some players did not turn up or stopped before fairway 12: on the match's score page choose **Close match**. The dialog lists who did not play and who finished fewer than 12 fairways, and shows the final result. Closing makes the result final (no longer *Live*) and locks the scores and line-up; **Reopen match** unlocks them. Publish afterwards.
+   - **Close one round** with **Close round N** next to the round's progress (for example when round 1 is over but round 2 is still being played). Its scores are locked and shown read-only, players with no scores in it show as *Did not play*, and its unfinished scorecards no longer keep the result *Live*. Phones are no longer offered that round. **Reopen round N** unlocks it.
+5. **Fix mistakes**: tap any fairway and enter the right number. Delete a whole round or match from the match screen, or clear one player's card with *Clear / absent*. Standings recalculate automatically.
+6. **Players and groups**: Admin → *Players* to register, edit, deactivate or delete players, add photos and move players between groups. Admin → *Groups* to manage groups.
+7. **Reports**: *Reports* → choose a period → download CSV or PDF.
+8. **Publish** after every training or match day: Admin → *Publish & backup* → **Publish results now**. Everyone sees the update in about 2 minutes.
+9. **Back up** regularly on the same page: *Download backup*.
 
 No source code ever needs to be edited to add players or record results.
 
@@ -232,7 +234,8 @@ Each card is stored in the sheet's *Submissions* tab, one row per player with F1
 
 - A round has 12 fairways. **Total strokes** is the sum of the fairway scores, and fewer is better.
 - **Every fairway score counts as soon as it is entered.** Averages are worked out per fairway and shown per round (× 12), so a player three fairways into a round can be compared fairly with someone who has finished. *Best round* records need all 12 fairways.
-- **Live results**: while scorecards are still being filled in, a match shows a provisional result marked **Live**, and its points count in the standings straight away. The result becomes final when every started scorecard has all 12 fairways. To award points only for finished matches, switch off *Show live results* in Settings.
+- **Live results**: while scorecards are still being filled in, a match shows a provisional result marked **Live**, and its points count in the standings straight away. The result becomes final when every started scorecard has all 12 fairways, or is in a round the coach has closed, or when the coach closes the match. To award points only for finished matches, switch off *Show live results* in Settings.
+- **Closing a match** makes its result final with the scores entered. Players with no scores are shown as *Did not play* and are left out; players who stopped early count for the fairways they played (averages are per fairway, so this stays fair), and best-round records still need all 12. A match can be closed once every group has at least one score (or a manual result is set). Scores, rounds and the line-up are then locked, and player-submitted cards for it are not added, until the match is reopened.
 - **Match result (automatic)**: the group with the fewest strokes per fairway (shown as average strokes per round) wins, which is fair when groups field different numbers of players. Groups level on that measure draw. You can switch this to total strokes in Settings, or set any match's result manually.
 - **Points**: Win 3 · Draw 1 · Loss 0. Strokes and points are separate measures.
 - **Tie-breakers** (Admin → Settings, reorderable): most wins, head-to-head record between the tied groups, lowest average strokes, fewest losses, best single round. Groups still level share a rank.
@@ -248,7 +251,7 @@ Each card is stored in the sheet's *Submissions* tab, one row per player with F1
 npm test
 ```
 
-Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, playing-card seeding (the 2 + 1 + 1 rule over hundreds of random line-ups), the score inbox (the real Google Apps Script run against a stand-in spreadsheet, card checks and merging, phone scorecards), individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
+Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, playing-card seeding (the 2 + 1 + 1 rule over hundreds of random line-ups), the score inbox (the real Google Apps Script run against a stand-in spreadsheet, card checks and merging, phone scorecards), closing matches and rounds with missing scores, individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
 
 The GitHub Actions workflow runs these tests before every deployment, and a failing test stops the deploy.
 

@@ -116,7 +116,9 @@ export function normalizeDataset(data) {
       outcomeMode: 'auto',
       manualResults: {},
       cards: [],
+      closedAt: null,
       ...m,
+      rounds: Array.isArray(m.rounds) ? m.rounds.map((r) => ({ closedAt: null, ...r })) : m.rounds,
     })),
     teamPhotos: data.teamPhotos || [],
   }
@@ -197,6 +199,8 @@ export function validateDataset(data) {
       if (!m.groupIds.includes(p.groupId)) err(`${label} has a player in a group that is not playing.`)
     }
 
+    if (m.closedAt != null && (typeof m.closedAt !== 'string' || Number.isNaN(Date.parse(m.closedAt)))) err(`${label} has an invalid closing time.`)
+
     // Playing cards (optional): line-up players only, each on at most one card.
     if (!Array.isArray(m.cards)) err(`${label} has an invalid list of playing cards.`)
     else {
@@ -222,6 +226,7 @@ export function validateDataset(data) {
     const roundIds = new Set()
     for (const r of m.rounds) {
       if (!isNonEmptyString(r.id) || roundIds.has(r.id)) err(`${label} has a round with a missing or duplicate ID.`)
+      if (r.closedAt != null && (typeof r.closedAt !== 'string' || Number.isNaN(Date.parse(r.closedAt)))) err(`${label} has a round with an invalid closing time.`)
       roundIds.add(r.id)
       if (!Number.isInteger(r.number) || r.number < 1) err(`${label} has an invalid round number.`)
       else if (roundNumbers.has(r.number)) err(`${label} has two rounds numbered ${r.number}.`)

@@ -9,6 +9,7 @@ import { countScoresForPlayers } from '../../state/actions.js'
 import { seedCards, syncCards } from '../../lib/cards.js'
 import { CardsEditor } from '../../components/PlayingCards.jsx'
 import Icon from '../../components/Icons.jsx'
+import CloseMatchButton from '../../components/CloseMatch.jsx'
 
 function autoTitle(type, groupIds, groupsById) {
   const names = groupIds.map((g) => groupsById[g]?.name).filter(Boolean)
@@ -22,6 +23,7 @@ export default function MatchEditor() {
   const { groupsById, playersById } = useLookups()
   const confirm = useConfirm()
   const existing = matchId ? data.matches.find((m) => m.id === matchId) : null
+  const closed = Boolean(existing?.closedAt)
   const isNew = !matchId
   useTitle(isNew ? 'Record a match' : 'Edit match')
 
@@ -169,6 +171,15 @@ export default function MatchEditor() {
     <>
       <PageHeader back={{ to: '/admin/matches', label: 'Matches' }} title={isNew ? 'Record a match' : 'Edit match details'} subtitle="Rounds and fairway scores are entered on the next screen." />
       <form onSubmit={submit} noValidate className="stack">
+        {closed && (
+          <Banner kind="info">
+            <p>
+              <strong>This match is closed,</strong> so its groups and line-up are locked. You can still change the date, title, venue, notes and
+              outcome settings.
+            </p>
+            <CloseMatchButton match={existing} />
+          </Banner>
+        )}
         <section className="card">
           <div className="form-grid">
             <div className="field">
@@ -191,7 +202,7 @@ export default function MatchEditor() {
               <span className="field-label">Participating groups *</span>
               <div className="chip-group">
                 {data.groups.map((g) => (
-                  <button key={g.id} type="button" className="chip" aria-pressed={form.groupIds.includes(g.id)} onClick={() => toggleGroup(g.id)}>
+                  <button key={g.id} type="button" className="chip" aria-pressed={form.groupIds.includes(g.id)} onClick={() => toggleGroup(g.id)} disabled={closed}>
                     <span className="group-dot" style={{ background: g.color }} aria-hidden="true" />
                     {g.name}
                   </button>
@@ -224,7 +235,8 @@ export default function MatchEditor() {
                 <p className="card-sub">{form.participants.length} players selected. Only selected players get score cards.</p>
               </div>
             </div>
-            <div className="stack" style={{ gap: 12 }}>
+            <fieldset className="plain-fieldset stack" style={{ gap: 12 }} disabled={closed}>
+              <legend className="sr-only">Players in the line-up</legend>
               {form.groupIds.map((gid) => {
                 const g = groupsById[gid]
                 const members = data.players
@@ -265,7 +277,7 @@ export default function MatchEditor() {
                   </div>
                 )
               })}
-            </div>
+            </fieldset>
           </section>
         )}
 

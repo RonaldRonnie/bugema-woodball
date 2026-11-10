@@ -108,7 +108,7 @@ export function groupMatchMetrics(match) {
       m.fairways += n
       m.totalStrokes += roundTotal(f)
       if (n === FAIRWAY_COUNT) m.playerRounds += 1
-      else m.inProgress += 1
+      else if (!round.closedAt) m.inProgress += 1 // a closed round's short scorecards are finished
     }
   }
   for (const m of Object.values(metrics)) {
@@ -161,7 +161,8 @@ export function computeOutcome(match, settings = {}) {
 
   const useTotal = settings.outcomeMetric === 'total'
   if (match.groupIds.some((gid) => !metrics[gid].fairways)) return { ...base, status: 'pending' }
-  const inProgress = match.groupIds.some((gid) => metrics[gid].inProgress > 0)
+  // A match the coach has closed is final even if some scorecards are short.
+  const inProgress = !match.closedAt && match.groupIds.some((gid) => metrics[gid].inProgress > 0)
   if (inProgress && settings.liveResults === false) return { ...base, status: 'pending', waitingForCompletion: true }
 
   const best = match.groupIds.reduce((b, gid) => (compareMetrics(metrics[gid], metrics[b], useTotal) < 0 ? gid : b))
@@ -171,6 +172,43 @@ export function computeOutcome(match, settings = {}) {
     results[gid] = !leaders.includes(gid) ? 'L' : leaders.length > 1 ? 'D' : 'W'
   }
   return { ...base, results, status: inProgress ? 'live' : 'decided', compared: useTotal ? 'total' : 'average' }
+}
+
+/**
+ * How much of the match (or of one round, with `roundId`) each player played:
+ * line-up players with no scores at all (`absent`), and started rounds with
+ * fewer than 12 fairways (`short`).
+ */
+export function lineupProgress(match, roundId = null) {
+  const absent = []
+  const short = []
+  let complete = 0
+  const rounds = [...match.rounds].filter((r) => !roundId || r.id === roundId).sort((a, b) => a.number - b.number)
+  for (const p of match.participants) {
+    let played = false
+    for (const r of rounds) {
+      const n = filledCount(r.scores?.[p.playerId])
+      if (!n) continue
+      played = true
+      if (n < FAIRWAY_COUNT) short.push({ playerId: p.playerId, roundNumber: r.number, fairways: n })
+      else complete++
+    }
+    if (!played) absent.push(p.playerId)
+  }
+  return { absent, short, complete }
+}
+
+/**
+ * Why a match cannot be closed yet, or '' when it can. Closing needs a
+ * result: every group must have a score (or a manual result for each group).
+ */
+export function closeBlocker(match, settings = {}, groupName = (gid) => gid) {
+  const outcome = computeOutcome({ ...match, closedAt: match.closedAt || 'closing' }, settings)
+  if (outcome.status !== 'pending') return ''
+  if (match.outcomeMode === 'manual') return 'Set the result for every group first (Details & line-up → Match outcome), or switch to the automatic result.'
+  const missing = match.groupIds.filter((gid) => !outcome.metrics[gid]?.fairways).map(groupName)
+  const one = missing.length === 1
+  return `${missing.join(' and ')} ${one ? 'has' : 'have'} no scores, so the match has no result. Enter at least one score for ${one ? 'that group' : 'those groups'}, set the result by hand (Details & line-up → Match outcome), or delete the match.`
 }
 
 /**

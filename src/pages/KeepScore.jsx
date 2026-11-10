@@ -237,7 +237,7 @@ function FairwayEntry({ sc, max, onChange, onReview }) {
 
 // ------------------------------------------------------------- review view
 
-function ReviewCard({ sc, inboxUrl, onChange, onEditFairway, onDelete }) {
+function ReviewCard({ sc, inboxUrl, closedNote, onChange, onEditFairway, onDelete }) {
   const toast = useToast()
   const confirm = useConfirm()
   const online = useOnline()
@@ -322,7 +322,9 @@ function ReviewCard({ sc, inboxUrl, onChange, onEditFairway, onDelete }) {
         </Banner>
       )}
 
-      {!inboxUrl ? (
+      {closedNote && state !== 'sent' ? (
+        <Banner kind="info">{closedNote} You can delete it from this phone.</Banner>
+      ) : !inboxUrl ? (
         <Banner kind="info">
           Sending cards to the coach is not switched on yet. This card stays saved on this phone — ask the coach to set up the score inbox, then come back and
           submit.
@@ -358,13 +360,14 @@ function ReviewCard({ sc, inboxUrl, onChange, onEditFairway, onDelete }) {
   )
 }
 
-function Scorecard({ sc, max, inboxUrl, onChange, onDelete }) {
+function Scorecard({ sc, max, inboxUrl, closedNote, onChange, onDelete }) {
   const [view, setView] = useState(() => (sc.sent || missingScores(sc).length === 0 ? 'review' : 'fairway'))
   if (view === 'review') {
     return (
       <ReviewCard
         sc={sc}
         inboxUrl={inboxUrl}
+        closedNote={closedNote}
         onChange={onChange}
         onDelete={onDelete}
         onEditFairway={(f) => {
@@ -412,7 +415,8 @@ function SavedCards({ saved, onOpen }) {
 
 function ChooseCard({ match, saved, onStart, onOpen }) {
   const { playersById, groupsById } = useLookups()
-  const rounds = useMemo(() => [...match.rounds].sort((a, b) => a.number - b.number), [match])
+  // Closed rounds take no more cards.
+  const rounds = useMemo(() => [...match.rounds].filter((r) => !r.closedAt).sort((a, b) => a.number - b.number), [match])
   const [roundId, setRoundId] = useState(() => rounds[rounds.length - 1]?.id)
   const { cards } = useMemo(() => describeCards(match, playersById), [match, playersById])
   const [cardNumber, setCardNumber] = useState(null)
@@ -423,6 +427,22 @@ function ChooseCard({ match, saved, onStart, onOpen }) {
   const existing = chosen ? saved.find((s) => s.key === scorecardKey(match.id, round.id, chosen.number)) : null
   const scorerName = scorerId === 'other' ? otherName.trim() : chosen?.players.find((e) => e.playerId === scorerId)?.player?.name || ''
   const ready = Boolean(chosen && (existing || scorerName))
+
+  if (match.closedAt) {
+    return (
+      <EmptyState icon="🏁" title="This match is closed" action={<Link to={`/matches/${match.id}`} className="btn">See the final result</Link>}>
+        The coach has closed this match, so no more scores can be sent for it.
+      </EmptyState>
+    )
+  }
+
+  if (!rounds.length) {
+    return (
+      <EmptyState icon="🏁" title="All rounds are closed" action={<Link to={`/matches/${match.id}`} className="btn">Back to the match</Link>}>
+        The coach has closed every round of this match, so no more scores can be sent for it.
+      </EmptyState>
+    )
+  }
 
   if (!cards.length) {
     return (
@@ -576,6 +596,13 @@ export default function KeepScore() {
             sc={open}
             max={max}
             inboxUrl={inboxUrl}
+            closedNote={
+              match?.closedAt
+                ? 'The coach has closed this match, so this card can no longer be sent.'
+                : match?.rounds.find((r) => r.id === open.roundId)?.closedAt
+                  ? `The coach has closed round ${open.roundNumber}, so this card can no longer be sent.`
+                  : ''
+            }
             onChange={update}
             onDelete={() => {
               removeScorecard(open.key)

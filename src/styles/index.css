@@ -2136,3 +2136,29 @@ dialog.dialog::backdrop {
   font-size: 0.75rem;
   white-space: pre;
 }
+
+/* ---------------------------------------------------------------- closing a match */
+.plain-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.plain-fieldset:disabled .lineup-players {
+  opacity: 0.6;
+}
+.close-result {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 12px;
+  display: grid;
+  gap: 4px;
+}
+.chip-note {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+}

@@ -71,9 +71,13 @@ export default function AdminMatches() {
                             {m.participants.length} players · {m.rounds.length} round{m.rounds.length === 1 ? '' : 's'}
                             {m.cards?.length > 0 && ` · ${m.cards.length} card${m.cards.length === 1 ? '' : 's'}`}
                           </span>
-                          <span className={p.done === p.expected && p.expected ? 'tag tag-ok' : 'tag tag-warn'}>
-                            {p.done}/{p.expected} scorecards complete
-                          </span>
+                          {m.closedAt ? (
+                            <span className="tag tag-navy">Closed</span>
+                          ) : (
+                            <span className={p.done === p.expected && p.expected ? 'tag tag-ok' : 'tag tag-warn'}>
+                              {p.done}/{p.expected} scorecards complete
+                            </span>
+                          )}
                           {o.status === 'live' && <LiveTag />}
                           {hasResult(o) &&
                             m.groupIds.map((g) => (

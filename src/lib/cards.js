@@ -160,11 +160,11 @@ export function cardsText(match, { playersById, groupsById, dateLabel }) {
 }
 
 /**
- * Matches on or after `today` that have cards, soonest first (same-day
- * matches in the order they were created).
+ * Matches on or after `today` that have cards and are not closed yet,
+ * soonest first (same-day matches in the order they were created).
  */
 export function upcomingCardMatches(matches, today) {
   return matches
-    .filter((m) => m.date >= today && m.cards?.length)
+    .filter((m) => m.date >= today && m.cards?.length && !m.closedAt)
     .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || '').localeCompare(b.createdAt || ''))
 }

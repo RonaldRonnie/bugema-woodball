@@ -6,9 +6,10 @@ import { useTitle } from '../components/Layout.jsx'
 import { PageHeader, ResultBadge, EmptyState, MatchTypeTag, GroupBadge, LiveTag } from '../components/common.jsx'
 import Icon from '../components/Icons.jsx'
 import { computeOutcome, hasResult, roundTotal, isRoundComplete, FAIRWAY_COUNT, POINTS } from '../lib/scoring.js'
-import { formatDate } from '../lib/dates.js'
+import { formatDate, formatDateTime } from '../lib/dates.js'
 import { formatAvg, sameDayIndex } from '../lib/stats.js'
 import { MatchCards } from '../components/PlayingCards.jsx'
+import CloseMatchButton from '../components/CloseMatch.jsx'
 
 export default function MatchDetail() {
   const { matchId } = useParams()
@@ -27,7 +28,8 @@ export default function MatchDetail() {
   // Before play starts the cards are what people come to see, so show them first.
   const started = match.rounds.some((r) => Object.keys(r.scores).length > 0)
   // Players keep score for their card on a phone once the coach has set up the score inbox.
-  const scoreLink = match.cards?.length && (data.settings.scoreInboxUrl || isAdmin) ? `/matches/${match.id}/score` : null
+  const closed = Boolean(match.closedAt)
+  const scoreLink = match.cards?.length && !closed && (data.settings.scoreInboxUrl || isAdmin) ? `/matches/${match.id}/score` : null
   const cards = <MatchCards match={match} playersById={playersById} groupsById={groupsById} scoreLink={scoreLink} />
 
   return (
@@ -51,6 +53,7 @@ export default function MatchDetail() {
               <Link to={`/admin/matches/${match.id}/edit`} className="btn btn-sm">
                 <Icon name="edit" /> Edit
               </Link>
+              <CloseMatchButton match={match} />
             </>
           )
         }
@@ -63,6 +66,7 @@ export default function MatchDetail() {
             <h2>Outcome</h2>
             <span className="row" style={{ gap: 6 }}>
               {outcome.status === 'live' && <LiveTag />}
+              {closed && <span className="tag tag-navy">Closed</span>}
               <MatchTypeTag match={match} />
             </span>
           </div>
@@ -116,6 +120,12 @@ export default function MatchDetail() {
               </tbody>
             </table>
           </div>
+          {closed && (
+            <p className="small mt-1 mb-0">
+              <strong>Final</strong> — closed by the coach {formatDateTime(match.closedAt)}. Players who did not play are left out; players who stopped
+              early count for the fairways they played.
+            </p>
+          )}
           {hasResult(outcome) && (
             <p className="small muted mt-1 mb-0">
               {match.outcomeMode === 'manual'
@@ -136,6 +146,7 @@ export default function MatchDetail() {
           <section key={round.id} className="card card-flush">
             <div className="card-header">
               <h2>Round {round.number}</h2>
+              {round.closedAt && !closed && <span className="tag tag-navy">Round closed</span>}
             </div>
             <div className="table-wrap">
               <table className="table table-compact">
@@ -157,6 +168,19 @@ export default function MatchDetail() {
                       .map((p) => {
                         const f = round.scores[p.playerId]
                         const player = playersById[p.playerId]
+                        if ((closed || round.closedAt) && !f) {
+                          return (
+                            <tr key={p.playerId}>
+                              <td className="sticky-col nowrap">
+                                <span className="group-dot" style={{ background: groupsById[gid]?.color, marginRight: 6 }} aria-hidden="true" />
+                                <Link to={`/players/${p.playerId}`}>{player?.name}</Link>
+                              </td>
+                              <td colSpan={FAIRWAY_COUNT + 1} className="muted small">
+                                Did not play
+                              </td>
+                            </tr>
+                          )
+                        }
                         return (
                           <tr key={p.playerId}>
                             <td className="sticky-col nowrap">
@@ -170,7 +194,7 @@ export default function MatchDetail() {
                             ))}
                             <td className="num strong">
                               {f ? roundTotal(f) : <span className="muted">—</span>}
-                              {f && !isRoundComplete(f) && <span className="sr-only"> (in progress)</span>}
+                              {f && !isRoundComplete(f) && <span className="sr-only">{closed || round.closedAt ? ' (did not finish)' : ' (in progress)'}</span>}
                               {f && !isRoundComplete(f) && <span className="muted">*</span>}
                             </td>
                           </tr>
@@ -182,7 +206,13 @@ export default function MatchDetail() {
             </div>
           </section>
         ))}
-        <p className="small muted">* round in progress (fewer than 12 fairways entered). Its scores already count in the averages; best-round records need all 12.</p>
+        <p className="small muted">
+          {closed
+            ? '* did not finish all 12 fairways. The fairways played count in the averages; best-round records need all 12.'
+            : match.rounds.some((r) => r.closedAt)
+              ? '* fewer than 12 fairways: still in progress, or — in a closed round — did not finish. The fairways played count in the averages; best-round records need all 12.'
+              : '* round in progress (fewer than 12 fairways entered). Its scores already count in the averages; best-round records need all 12.'}
+        </p>
       </div>
     </>
   )

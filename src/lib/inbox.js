@@ -131,6 +131,10 @@ export function reviewCard(card, data) {
     return { ...p, current, merged, change: same ? 'same' : current ? 'update' : 'new' }
   })
   const usable = players.filter((p) => p.change === 'new' || p.change === 'update')
+  if (usable.length && (match.closedAt || round.closedAt)) {
+    const what = match.closedAt ? 'This match is closed' : `Round ${round.number} is closed`
+    return { ...base, match, round, players, usable: [], state: 'problem', problem: `${what}, so the card cannot be added. Reopen it first if you want to use the card.` }
+  }
   if (usable.length) return { ...base, match, round, players, usable, state: 'ready' }
   if (players.some((p) => p.change === 'same')) return { ...base, match, round, players, usable, state: 'entered' }
   return { ...base, match, round, players, usable, state: 'problem', problem: 'Nothing on this card can be added — see the note next to each player.' }

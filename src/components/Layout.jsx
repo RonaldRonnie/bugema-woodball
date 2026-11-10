@@ -35,11 +35,17 @@ export function useTitle(title) {
 }
 
 /** Reminds a player's phone about scorecards that have not reached the coach. */
-function UnsentScorecards({ pathname }) {
+function UnsentScorecards({ pathname, matches }) {
   const [unsent, setUnsent] = useState([])
   useEffect(() => {
-    setUnsent(listScorecards().filter((sc) => hasAnyScore(sc) && sendState(sc) !== 'sent'))
-  }, [pathname])
+    // Cards for a match or round the coach has closed no longer need sending.
+    const closed = new Set()
+    for (const m of matches) {
+      if (m.closedAt) closed.add(m.id)
+      for (const r of m.rounds) if (r.closedAt) closed.add(r.id)
+    }
+    setUnsent(listScorecards().filter((sc) => hasAnyScore(sc) && sendState(sc) !== 'sent' && !closed.has(sc.matchId) && !closed.has(sc.roundId)))
+  }, [pathname, matches])
   if (!unsent.length || /^\/matches\/[^/]+\/score$/.test(pathname)) return null
   const sc = unsent[0]
   return (
@@ -108,7 +114,7 @@ export default function Layout() {
 
       <main className="main" id="main" tabIndex={-1}>
         {warning && <Banner kind="danger">{warning}</Banner>}
-        <UnsentScorecards pathname={pathname} />
+        <UnsentScorecards pathname={pathname} matches={data.matches} />
         {!storageOk && (
           <Banner kind="warning">
             This browser is blocking local storage (private mode or strict privacy settings). You can look around, but

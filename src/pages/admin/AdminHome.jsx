@@ -101,7 +101,9 @@ export default function AdminHome() {
   const recent = useMemo(() => sortMatches(data.matches, 'desc').slice(0, 5), [data])
 
   const issues = useMemo(() => {
-    const incomplete = collectEntries(data.matches).filter((e) => !e.complete)
+    const open = data.matches.filter((m) => !m.closedAt)
+    const closedRounds = new Set(open.flatMap((m) => m.rounds.filter((r) => r.closedAt).map((r) => r.id)))
+    const incomplete = collectEntries(open).filter((e) => !e.complete && !closedRounds.has(e.roundId))
     const pending = data.matches.filter((m) => computeOutcome(m, data.settings).status === 'pending')
     return { incomplete, pending }
   }, [data])
@@ -163,7 +165,10 @@ export default function AdminHome() {
             )}
             {issues.incomplete.length > 0 && (
               <>
-                <p className="small muted mb-0">Rounds in progress (fewer than 12 fairways entered — results stay “live” until finished):</p>
+                <p className="small muted mb-0">
+                  Rounds in progress (fewer than 12 fairways entered — results stay “live” until finished). If players did not turn up or stopped early,
+                  open the match’s scores and choose <strong>Close round</strong> or <strong>Close match</strong> to make the result final:
+                </p>
                 <ul>
                   {issues.incomplete.slice(0, 8).map((e) => (
                     <li key={`${e.roundId}-${e.playerId}`}>

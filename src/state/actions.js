@@ -5,7 +5,7 @@
 import { newId } from '../lib/ids.js'
 import { nextGroupColor, isPaletteColor } from '../lib/colors.js'
 import { isValidISODate } from '../lib/dates.js'
-import { FAIRWAY_COUNT, emptyFairways } from '../lib/scoring.js'
+import { FAIRWAY_COUNT, emptyFairways, closeBlocker } from '../lib/scoring.js'
 import { TIE_BREAKER_OPTIONS } from '../data/defaults.js'
 import { MAX_STROKE_VALUE } from '../services/storage.js'
 import { seedCards, syncCards } from '../lib/cards.js'
@@ -223,7 +223,8 @@ export function createMatch(draft, input) {
   const match = {
     id: newId('mat'),
     ...fields,
-    rounds: [{ id: newId('rnd'), number: 1, scores: {} }],
+    rounds: [{ id: newId('rnd'), number: 1, scores: {}, closedAt: null }],
+    closedAt: null,
     createdAt: t,
     updatedAt: t,
   }
@@ -234,6 +235,20 @@ export function createMatch(draft, input) {
 export function updateMatch(draft, id, patch) {
   const m = find(draft.matches, id, 'Match')
   const fields = normaliseMatchInput(draft, patch, m)
+  if (m.closedAt) {
+    const key = (x) => [[...x.groupIds].sort().join(','), x.participants.map((p) => `${p.playerId}:${p.groupId}`).sort().join(',')].join('|')
+    if (key(fields) !== key(m)) throw new ActionError('This match is closed. Reopen it to change its groups or line-up.')
+  }
+  // Leaving the line-up deletes a player's scores, which a closed round keeps.
+  const staying = new Set(fields.participants.map((p) => p.playerId))
+  for (const r of m.rounds) {
+    if (!r.closedAt) continue
+    const leaving = Object.keys(r.scores).filter((pid) => !staying.has(pid))
+    if (leaving.length) {
+      const who = draft.players.find((p) => p.id === leaving[0])?.name || 'A player'
+      throw new ActionError(`${who} has scores in closed round ${r.number}. Reopen that round to take them out of the line-up.`)
+    }
+  }
   const keep = new Set(fields.participants.map((p) => p.playerId))
   Object.assign(m, fields)
   // Scores of players removed from the line-up go with them.
@@ -249,6 +264,58 @@ export function deleteMatch(draft, id) {
   draft.matches = draft.matches.filter((m) => m.id !== id)
 }
 
+function assertOpen(m) {
+  if (m.closedAt) throw new ActionError('This match is closed. Reopen it to change scores or rounds.')
+}
+
+/**
+ * Closes a match: its result becomes final with the scores entered, even if
+ * some players did not play or finished fewer than 12 fairways. Scores,
+ * rounds and the line-up are locked until the match is reopened.
+ */
+export function closeMatch(draft, id) {
+  const m = find(draft.matches, id, 'Match')
+  if (m.closedAt) return
+  const why = closeBlocker(m, draft.settings, (gid) => draft.groups.find((g) => g.id === gid)?.name || 'A group')
+  if (why) throw new ActionError(why)
+  m.closedAt = now()
+  m.updatedAt = m.closedAt
+}
+
+/**
+ * Closes one round: its scores are locked and its unfinished scorecards no
+ * longer keep the match result "live". Needs at least one score in the round.
+ */
+export function closeRound(draft, matchId, roundId) {
+  const m = find(draft.matches, matchId, 'Match')
+  assertOpen(m)
+  const r = find(m.rounds, roundId, 'Round')
+  if (r.closedAt) return
+  if (!m.participants.some((p) => (r.scores[p.playerId] || []).some((v) => v != null))) {
+    throw new ActionError(`Round ${r.number} has no scores yet. Enter scores first, or delete the round if it was not played.`)
+  }
+  r.closedAt = now()
+  m.updatedAt = r.closedAt
+}
+
+export function reopenRound(draft, matchId, roundId) {
+  const m = find(draft.matches, matchId, 'Match')
+  assertOpen(m)
+  const r = find(m.rounds, roundId, 'Round')
+  r.closedAt = null
+  m.updatedAt = now()
+}
+
+function assertRoundOpen(r) {
+  if (r.closedAt) throw new ActionError(`Round ${r.number} is closed. Reopen it to change its scores.`)
+}
+
+export function reopenMatch(draft, id) {
+  const m = find(draft.matches, id, 'Match')
+  m.closedAt = null
+  m.updatedAt = now()
+}
+
 /** Scores that would be lost if these players left the match line-up. */
 export function countScoresForPlayers(match, playerIds) {
   const ids = new Set(playerIds)
@@ -261,8 +328,9 @@ export function countScoresForPlayers(match, playerIds) {
 
 export function addRound(draft, matchId) {
   const m = find(draft.matches, matchId, 'Match')
+  assertOpen(m)
   const number = m.rounds.reduce((max, r) => Math.max(max, r.number), 0) + 1
-  const round = { id: newId('rnd'), number, scores: {} }
+  const round = { id: newId('rnd'), number, scores: {}, closedAt: null }
   m.rounds.push(round)
   m.updatedAt = now()
   return round.id
@@ -270,7 +338,9 @@ export function addRound(draft, matchId) {
 
 export function setRoundNumber(draft, matchId, roundId, number) {
   const m = find(draft.matches, matchId, 'Match')
+  assertOpen(m)
   const r = find(m.rounds, roundId, 'Round')
+  assertRoundOpen(r)
   const n = Number(number)
   if (!Number.isInteger(n) || n < 1 || n > 99) throw new ActionError('Round number must be a whole number from 1 to 99.')
   if (m.rounds.some((x) => x.id !== roundId && x.number === n)) throw new ActionError(`Round ${n} already exists in this match.`)
@@ -280,7 +350,8 @@ export function setRoundNumber(draft, matchId, roundId, number) {
 
 export function deleteRound(draft, matchId, roundId) {
   const m = find(draft.matches, matchId, 'Match')
-  find(m.rounds, roundId, 'Round')
+  assertOpen(m)
+  assertRoundOpen(find(m.rounds, roundId, 'Round'))
   if (m.rounds.length === 1) throw new ActionError('A match needs at least one round. Delete the match instead.')
   m.rounds = m.rounds.filter((r) => r.id !== roundId)
   m.updatedAt = now()
@@ -298,7 +369,9 @@ function checkStroke(value, max) {
 
 function scoringContext(draft, matchId, roundId, playerId) {
   const m = find(draft.matches, matchId, 'Match')
+  assertOpen(m)
   const r = find(m.rounds, roundId, 'Round')
+  assertRoundOpen(r)
   if (!m.participants.some((p) => p.playerId === playerId)) {
     throw new ActionError('This player is not in the match line-up.')
   }

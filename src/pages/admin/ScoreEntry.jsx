@@ -7,10 +7,11 @@ import { PageHeader, EmptyState, ResultBadge, GroupBadge } from '../../component
 import { PlayerAvatar } from '../../components/media.jsx'
 import Icon from '../../components/Icons.jsx'
 import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome, hasResult, interpretStroke } from '../../lib/scoring.js'
-import { formatDate } from '../../lib/dates.js'
+import { formatDate, formatDateTime } from '../../lib/dates.js'
 import { formatAvg } from '../../lib/stats.js'
 import { readPref, writePref } from '../../services/storage.js'
 import { describeCards } from '../../lib/cards.js'
+import CloseMatchButton, { CloseRoundButton } from '../../components/CloseMatch.jsx'
 
 const EMPTY_ROUND = Object.freeze(Array(FAIRWAY_COUNT).fill(null))
 
@@ -378,6 +379,74 @@ function TableEntry({ sections, headings, round, max, onSave, groupsById }) {
   )
 }
 
+/** A closed round's scores, read-only. */
+function ClosedRoundTable({ sections, headings, round, groupsById }) {
+  return (
+    <div className="card card-flush">
+      <div className="table-wrap">
+        <table className="table table-compact">
+          <caption className="sr-only">Fairway scores, round {round.number} (closed)</caption>
+          <thead>
+            <tr>
+              <th className="sticky-col">Player</th>
+              {Array.from({ length: FAIRWAY_COUNT }, (_, i) => (
+                <th key={i} className="num">
+                  F{i + 1}
+                </th>
+              ))}
+              <th className="num">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map((section) => (
+              <Fragment key={section.key}>
+                {headings && (
+                  <tr className="section-row">
+                    <th colSpan={FAIRWAY_COUNT + 2} scope="colgroup">
+                      {section.label}
+                    </th>
+                  </tr>
+                )}
+                {section.rows.map(({ participant, player }) => {
+                  const f = round.scores[participant.playerId]
+                  return (
+                    <tr key={participant.playerId}>
+                      <td className="sticky-col nowrap">
+                        <span className="group-dot" style={{ background: groupsById[participant.groupId]?.color, marginRight: 6 }} aria-hidden="true" />
+                        {player?.name}
+                      </td>
+                      {f ? (
+                        <>
+                          {Array.from({ length: FAIRWAY_COUNT }, (_, c) => (
+                            <td key={c} className="num">
+                              {f[c] ?? <span className="muted">·</span>}
+                            </td>
+                          ))}
+                          <td className="num strong">
+                            {roundTotal(f)}
+                            {!isRoundComplete(f) && <span className="muted">*</span>}
+                          </td>
+                        </>
+                      ) : (
+                        <td colSpan={FAIRWAY_COUNT + 1} className="muted small">
+                          Did not play
+                        </td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="small muted" style={{ padding: '8px 16px', margin: 0 }}>
+        * did not finish all 12 fairways. The fairways played count in the averages.
+      </p>
+    </div>
+  )
+}
+
 // ------------------------------------------------------------------- page
 
 export default function ScoreEntry() {
@@ -512,11 +581,36 @@ export default function ScoreEntry() {
             <Link to={`/admin/matches/${match.id}/edit`} className="btn btn-sm">
               <Icon name="edit" /> Details & line-up
             </Link>
+            {!match.closedAt && rows.length > 0 && <CloseMatchButton match={match} />}
           </>
         }
       />
 
-      {!rows.length ? (
+      {match.closedAt ? (
+        <section className="card" aria-labelledby="closed-title">
+          <h2 id="closed-title">Match closed</h2>
+          <p>
+            Closed {formatDateTime(match.closedAt)}. The result is final, based on the scores entered, and scores, rounds and the line-up are locked.
+          </p>
+          {hasResult(outcome) && (
+            <p className="row" style={{ gap: 12 }}>
+              {match.groupIds.map((g) => (
+                <span key={g} className="row" style={{ gap: 4 }}>
+                  <span className="group-dot" style={{ background: groupsById[g]?.color }} aria-hidden="true" />
+                  {groupsById[g]?.name} <ResultBadge result={outcome.results[g]} />
+                  <span className="muted small">({formatAvg(outcome.metrics[g]?.avgStrokes)})</span>
+                </span>
+              ))}
+            </p>
+          )}
+          <div className="row">
+            <Link to={`/matches/${match.id}`} className="btn btn-primary">
+              View the final scorecard
+            </Link>
+            <CloseMatchButton match={match} className="btn" />
+          </div>
+        </section>
+      ) : !rows.length ? (
         <div className="card">
           <EmptyState
             title="No players in the line-up"
@@ -545,6 +639,7 @@ export default function ScoreEntry() {
                     onClick={() => select({ round: r.id })}
                   >
                     Round {r.number}
+                    {r.closedAt && <span className="chip-note">closed</span>}
                   </button>
                 ))}
                 <button type="button" className="chip" onClick={addRound}>
@@ -561,8 +656,11 @@ export default function ScoreEntry() {
               </div>
             </div>
             <div className="row-between mt-1 small">
-              <span className="muted">
-                Round {round.number}: {doneCount}/{rows.length} score cards complete
+              <span className="row" style={{ gap: 8 }}>
+                <span className="muted">
+                  Round {round.number}: {round.closedAt ? `closed ${formatDateTime(round.closedAt)}` : `${doneCount}/${rows.length} score cards complete`}
+                </span>
+                <CloseRoundButton match={match} round={round} />
               </span>
               <span className="row" style={{ gap: 6 }}>
                 {hasResult(outcome) ? (
@@ -602,18 +700,20 @@ export default function ScoreEntry() {
                     value={renumber}
                     onChange={(e) => setRenumber(e.target.value)}
                   />
-                  <button type="submit" className="btn btn-sm" disabled={!renumber}>
+                  <button type="submit" className="btn btn-sm" disabled={!renumber || Boolean(round.closedAt)}>
                     Renumber
                   </button>
                 </form>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={deleteRound} disabled={rounds.length === 1} style={{ color: 'var(--danger)' }}>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={deleteRound} disabled={rounds.length === 1 || Boolean(round.closedAt)} style={{ color: 'var(--danger)' }}>
                   <Icon name="trash" /> Delete round {round.number}
                 </button>
               </div>
             </details>
           </section>
 
-          {mode === 'table' ? (
+          {round.closedAt ? (
+            <ClosedRoundTable key={round.id} sections={sections} headings={byCard} round={round} groupsById={groupsById} />
+          ) : mode === 'table' ? (
             <TableEntry key={round.id} sections={sections} headings={byCard} round={round} max={max} onSave={save} groupsById={groupsById} />
           ) : (
             <div className="entry-layout">
