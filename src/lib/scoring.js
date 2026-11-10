@@ -7,6 +7,19 @@ export function emptyFairways() {
   return Array(FAIRWAY_COUNT).fill(null)
 }
 
+/**
+ * Interprets typed digits for one fairway. Returns { value, valid, done }:
+ * `done` means no further digit could make a valid score, so the cursor
+ * should move on (e.g. with a limit of 15, "4" is final but "1" may become 12).
+ */
+export function interpretStroke(text, max) {
+  const t = String(text).replace(/\D/g, '').slice(0, 2)
+  if (t === '') return { text: t, value: null, valid: true, done: false }
+  const n = parseInt(t, 10)
+  const valid = n >= 1 && n <= max
+  return { text: t, value: valid ? n : null, valid, done: valid && (t.length >= 2 || n * 10 > max) }
+}
+
 export function isStrokeValue(v) {
   return Number.isInteger(v) && v >= 1
 }

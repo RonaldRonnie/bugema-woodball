@@ -9,6 +9,8 @@ import { teamSummary } from '../../lib/stats.js'
 import { collectEntries, sortMatches, computeOutcome } from '../../lib/scoring.js'
 import { formatDateTime, formatDate } from '../../lib/dates.js'
 import { hasUnpublishedChanges } from '../../components/PublishPanel.jsx'
+import { useInboxFeed } from '../../state/inboxFeed.js'
+import { inboxItems, isWaiting } from '../../lib/inbox.js'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -66,6 +68,31 @@ function PublishReminder() {
   )
 }
 
+/** Cards from players' phones waiting in the score inbox. */
+function InboxReminder() {
+  const { data, meta } = useData()
+  const url = data.settings.scoreInboxUrl
+  const feed = useInboxFeed(url, { maxAgeMs: 60 * 1000 })
+  const waiting = useMemo(
+    () => (feed.cards ? inboxItems(feed.cards, data, meta.inboxHandled || {}).filter(isWaiting).length : 0),
+    [feed.cards, data, meta.inboxHandled],
+  )
+  if (!url || !waiting) return null
+  return (
+    <Banner kind="info">
+      <p>
+        <strong>
+          {waiting === 1 ? '1 playing card from players is' : `${waiting} playing cards from players are`} waiting in the score inbox.
+        </strong>{' '}
+        Check them, accept them, then publish.
+      </p>
+      <Link to="/admin/inbox" className="btn btn-sm btn-primary">
+        <Icon name="clipboard" /> Open the score inbox
+      </Link>
+    </Banner>
+  )
+}
+
 export default function AdminHome() {
   useTitle('Admin dashboard')
   const { data, source } = useData()
@@ -82,6 +109,7 @@ export default function AdminHome() {
   return (
     <>
       <PageHeader title="Admin dashboard" subtitle={source === 'seed' ? 'Initial roster loaded — nothing has been saved on this device yet.' : `Last change ${formatDateTime(data.updatedAt)}`} />
+      <InboxReminder />
       <PublishReminder />
       <BackupReminder />
 

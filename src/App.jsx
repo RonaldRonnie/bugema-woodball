@@ -16,6 +16,7 @@ import About from './pages/About.jsx'
 
 // Admin screens and reports load on demand to keep the public pages fast.
 const Reports = lazy(() => import('./pages/Reports.jsx'))
+const KeepScore = lazy(() => import('./pages/KeepScore.jsx'))
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout.jsx'))
 const AdminHome = lazy(() => import('./pages/admin/AdminHome.jsx'))
 const AdminPlayers = lazy(() => import('./pages/admin/AdminPlayers.jsx'))
@@ -25,6 +26,7 @@ const MatchEditor = lazy(() => import('./pages/admin/MatchEditor.jsx'))
 const ScoreEntry = lazy(() => import('./pages/admin/ScoreEntry.jsx'))
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings.jsx'))
 const AdminData = lazy(() => import('./pages/admin/AdminData.jsx'))
+const AdminInbox = lazy(() => import('./pages/admin/AdminInbox.jsx'))
 
 class ErrorBoundary extends Component {
   state = { error: null }
@@ -86,6 +88,7 @@ export default function App() {
                       <Route path="players/:playerId" element={<PlayerProfile />} />
                       <Route path="matches" element={<Matches />} />
                       <Route path="matches/:matchId" element={<MatchDetail />} />
+                      <Route path="matches/:matchId/score" element={<KeepScore />} />
                       <Route path="reports" element={<Reports />} />
                       <Route path="about" element={<About />} />
                       <Route path="admin" element={<AdminLayout />}>
@@ -96,6 +99,7 @@ export default function App() {
                         <Route path="matches/new" element={<MatchEditor />} />
                         <Route path="matches/:matchId/edit" element={<MatchEditor />} />
                         <Route path="matches/:matchId/scores" element={<ScoreEntry />} />
+                        <Route path="inbox" element={<AdminInbox />} />
                         <Route path="settings" element={<AdminSettings />} />
                         <Route path="data" element={<AdminData />} />
                       </Route>

@@ -6,7 +6,7 @@ import { useTitle } from '../../components/Layout.jsx'
 import { PageHeader, EmptyState, ResultBadge, GroupBadge } from '../../components/common.jsx'
 import { PlayerAvatar } from '../../components/media.jsx'
 import Icon from '../../components/Icons.jsx'
-import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome, hasResult } from '../../lib/scoring.js'
+import { FAIRWAY_COUNT, roundTotal, isRoundComplete, filledCount, computeOutcome, hasResult, interpretStroke } from '../../lib/scoring.js'
 import { formatDate } from '../../lib/dates.js'
 import { formatAvg } from '../../lib/stats.js'
 import { readPref, writePref } from '../../services/storage.js'
@@ -14,20 +14,9 @@ import { describeCards } from '../../lib/cards.js'
 
 const EMPTY_ROUND = Object.freeze(Array(FAIRWAY_COUNT).fill(null))
 
-const isTouchDevice = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+export { interpretStroke }
 
-/**
- * Interprets typed digits for one fairway. Returns { value, valid, done }:
- * `done` means no further digit could make a valid score, so the cursor
- * should move on (e.g. with a limit of 15, "4" is final but "1" may become 12).
- */
-export function interpretStroke(text, max) {
-  const t = String(text).replace(/\D/g, '').slice(0, 2)
-  if (t === '') return { text: t, value: null, valid: true, done: false }
-  const n = parseInt(t, 10)
-  const valid = n >= 1 && n <= max
-  return { text: t, value: valid ? n : null, valid, done: valid && (t.length >= 2 || n * 10 > max) }
-}
+const isTouchDevice = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
 
 // ----------------------------------------------------- player-by-player card
 

@@ -214,7 +214,7 @@ export default function PublishPanel() {
 
   const publish = async () => {
     // Guard against overwriting newer results published from another device.
-    const online = await fetchPublishedSnapshot()
+    const online = await fetchPublishedSnapshot({ fresh: true })
     if (online && online.data.updatedAt > data.updatedAt && online.exportedAt !== meta.lastPublishedAt) {
       const overwrite = await confirm({
         title: 'The website has newer results',

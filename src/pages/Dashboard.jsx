@@ -13,14 +13,14 @@ import { formatDate, todayISO } from '../lib/dates.js'
 import Icon from '../components/Icons.jsx'
 
 /** Upcoming matches whose playing cards are out. */
-function UpcomingCards({ matches, groupsById }) {
+function UpcomingCards({ matches, groupsById, scoring }) {
   if (!matches.length) return null
   return (
     <section className="card card-flush" aria-labelledby="upcoming-title">
       <div className="card-header">
         <div>
           <h2 id="upcoming-title">Playing cards are out</h2>
-          <p className="card-sub">See who you are playing with</p>
+          <p className="card-sub">{scoring ? 'See who you are playing with, and keep score for your card on your phone' : 'See who you are playing with'}</p>
         </div>
       </div>
       <div className="list">
@@ -85,7 +85,7 @@ export default function Dashboard() {
     <div className="stack">
       <Hero settings={data.settings} photo={heroPhoto} />
 
-      <UpcomingCards matches={upcoming} groupsById={groupsById} />
+      <UpcomingCards matches={upcoming} groupsById={groupsById} scoring={Boolean(data.settings.scoreInboxUrl)} />
 
       <section className="stat-grid" aria-label="Team totals">
         <StatTile label="Players" value={summary.activePlayers} note={`${summary.totalGroups} groups · ${summary.totalPlayers} registered`} />

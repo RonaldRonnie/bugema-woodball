@@ -1933,3 +1933,206 @@ dialog.dialog::backdrop {
   background: var(--surface-2);
   padding: 6px 12px;
 }
+
+/* ---------------------------------------------------------------- keep score (players' phones) */
+.text-center {
+  text-align: center;
+}
+.btn-lg {
+  min-height: 52px;
+  font-size: 1rem;
+}
+.list-button {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.list-button:hover {
+  background: var(--surface-2);
+}
+.fw-nav {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+}
+@media (min-width: 560px) {
+  .fw-nav {
+    grid-template-columns: repeat(12, 1fr);
+  }
+}
+.fw-dot {
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fw-dot.done {
+  background: var(--success-bg);
+  border-color: var(--success);
+  color: var(--success-text);
+}
+.fw-dot.current {
+  background: var(--navy-900);
+  border-color: var(--navy-900);
+  color: #fff;
+}
+.keeper-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.keeper-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 12px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.keeper-row.active {
+  border-color: var(--navy-700);
+  box-shadow: 0 0 0 3px rgba(27, 68, 121, 0.18);
+}
+.keeper-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.keeper-sub {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.keeper-value {
+  flex: none;
+  line-height: 1;
+  min-width: 56px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-3);
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.keeper-value.empty::after {
+  content: '';
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.keeper-value.invalid {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+.keypad-5 {
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.keypad-5 .key-next {
+  grid-column: span 4;
+}
+.keeper .keypad button {
+  min-height: 48px;
+}
+.keeper-review {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.keeper-review .fw-strip {
+  margin-top: 4px;
+  /* all 12 fairways fit a narrow phone screen */
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 2px;
+}
+.keeper-gap {
+  color: var(--warning-text);
+}
+.pick-cards {
+  border: 0;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pick-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.pick-card.selected {
+  border-color: var(--navy-700);
+  background: var(--navy-100);
+}
+.pick-card input {
+  margin-top: 4px;
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.pick-card-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.pick-card-text .small {
+  flex-basis: 100%;
+}
+
+/* ---------------------------------------------------------------- score inbox (coach) */
+.inbox-table td.differs {
+  background: var(--gold-100);
+  font-weight: 700;
+}
+.inbox-table td.blank {
+  color: var(--muted);
+}
+.inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.85rem;
+  color: var(--text-2);
+}
+.script-box {
+  width: 100%;
+  min-height: 140px;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  white-space: pre;
+}

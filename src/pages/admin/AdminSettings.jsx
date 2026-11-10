@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useData } from '../../state/DataContext.jsx'
-import { useToast } from '../../state/UIContext.jsx'
+import { useToast, useConfirm } from '../../state/UIContext.jsx'
 import { useTitle } from '../../components/Layout.jsx'
 import { PageHeader } from '../../components/common.jsx'
 import { PhotoPicker, StoredImage } from '../../components/media.jsx'
@@ -8,6 +9,9 @@ import Icon from '../../components/Icons.jsx'
 import { TIE_BREAKER_OPTIONS } from '../../data/defaults.js'
 import { IMAGE_PRESETS } from '../../lib/images.js'
 import { storeUploadedImage, discardImage } from '../../state/images.jsx'
+import { cleanInboxUrl, isInboxUrl, pingInbox } from '../../lib/inbox.js'
+import { copyText } from '../../lib/clipboard.js'
+import inboxScript from '../../../apps-script/score-inbox.gs?raw'
 
 function TeamInfo() {
   const { data, commit, actions } = useData()
@@ -258,6 +262,151 @@ function ScoringRules() {
   )
 }
 
+function ScoreInbox() {
+  const { data, commit, actions } = useData()
+  const toast = useToast()
+  const confirm = useConfirm()
+  const current = data.settings.scoreInboxUrl
+  const [url, setUrl] = useState(current)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [showScript, setShowScript] = useState(false)
+
+  const save = async (e) => {
+    e.preventDefault()
+    const u = cleanInboxUrl(url)
+    if (!isInboxUrl(u)) {
+      setError('Paste the web app address from Apps Script. It starts with https://script.google.com/macros/s/ and ends with /exec.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      await pingInbox(u)
+      if (commit((d) => actions.updateSettings(d, { scoreInboxUrl: u })).ok) {
+        setUrl(u)
+        toast.success('Score inbox connected. Now publish the results so players’ phones know where to send their cards.')
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    const ok = await confirm({
+      title: 'Switch off the score inbox?',
+      message: 'After you publish, players can no longer submit cards from their phones. Cards already in your Google Sheet stay there.',
+      confirmLabel: 'Switch off',
+    })
+    if (ok && commit((d) => actions.updateSettings(d, { scoreInboxUrl: '' }), { success: 'Score inbox switched off. Publish to update players’ phones.' }).ok) {
+      setUrl('')
+    }
+  }
+
+  const copyScript = async () => {
+    if (await copyText(inboxScript)) toast.success('Script copied. Paste it into Apps Script.')
+    else {
+      setShowScript(true)
+      toast.error('Copying is blocked in this browser. Select the script below and copy it.')
+    }
+  }
+
+  return (
+    <section className="card" id="score-inbox" aria-labelledby="score-inbox-title">
+      <h2 id="score-inbox-title">Score inbox — players submit their cards</h2>
+      <p className="small">
+        One player per playing card keeps score on their phone after each fairway (it works without internet) and taps <strong>Submit</strong> at the end.
+        The cards land in a Google Sheet in your Google account — one row per player with F1–F12, which you can download as CSV — and appear in{' '}
+        <strong>Admin → Score inbox</strong>, where you accept them and publish. Anyone with the inbox address could send a card, so you check every card
+        before accepting it; nothing reaches the website until you publish.
+      </p>
+      <p className="small">
+        Status:{' '}
+        {current ? <span className="tag tag-ok">Switched on</span> : <span className="tag">Not set up</span>}
+      </p>
+      <details className="table-toggle" open={!current}>
+        <summary>How to set it up (once, about 10 minutes, on a computer)</summary>
+        <ol className="small">
+          <li>
+            Sign in to Google, then open{' '}
+            <a href="https://sheets.new" target="_blank" rel="noreferrer">
+              sheets.new
+            </a>{' '}
+            to create a blank spreadsheet. Name it “Woodball score inbox”.
+          </li>
+          <li>
+            In the spreadsheet, choose <strong>Extensions → Apps Script</strong>. Delete the few lines already there and paste the inbox script:{' '}
+            <button type="button" className="btn btn-sm" onClick={copyScript}>
+              <Icon name="clipboard" /> Copy the inbox script
+            </button>{' '}
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => setShowScript((v) => !v)} aria-expanded={showScript}>
+              {showScript ? 'Hide' : 'Show'} the script
+            </button>
+            . Then click the <strong>Save</strong> icon.
+          </li>
+          <li>
+            Click <strong>Deploy → New deployment</strong>. Next to “Select type”, click the gear icon and choose <strong>Web app</strong>. Set{' '}
+            <strong>Execute as: Me</strong> and <strong>Who has access: Anyone</strong>, then click <strong>Deploy</strong>.
+          </li>
+          <li>
+            Google asks you to authorize access: choose your account. If it says “Google hasn’t verified this app”, click <strong>Advanced</strong> →{' '}
+            <strong>Go to … (unsafe)</strong> → <strong>Allow</strong>. It is your own script, and it can only use this one spreadsheet.
+          </li>
+          <li>
+            Copy the <strong>Web app URL</strong> (it ends in <code>/exec</code>), paste it below and click <strong>Test and save</strong>.
+          </li>
+          <li>
+            <strong>Publish the results.</strong> Players’ phones learn where to send their cards from the published results.
+          </li>
+        </ol>
+        <p className="small muted">
+          If you ever paste a newer version of the script, use <strong>Deploy → Manage deployments → Edit → Version: New version</strong> so the address stays
+          the same.
+        </p>
+        {showScript && <textarea className="input script-box" readOnly value={inboxScript} aria-label="Score inbox script" onFocus={(e) => e.target.select()} />}
+      </details>
+      <form onSubmit={save} noValidate className="mt-1">
+        <div className="field">
+          <label htmlFor="inbox-url">Web app URL</label>
+          <input
+            id="inbox-url"
+            className="input"
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://script.google.com/macros/s/…/exec"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              setError('')
+            }}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? 'inbox-url-error' : undefined}
+          />
+          {error && (
+            <span id="inbox-url-error" className="field-error" role="alert">
+              {error}
+            </span>
+          )}
+        </div>
+        <div className="form-actions">
+          <button type="submit" className="btn btn-primary" disabled={busy || !url.trim() || cleanInboxUrl(url) === current}>
+            {busy ? 'Testing…' : 'Test and save'}
+          </button>
+          {current && (
+            <button type="button" className="btn btn-ghost" onClick={remove}>
+              Switch off
+            </button>
+          )}
+        </div>
+      </form>
+    </section>
+  )
+}
+
 function AdminPassword() {
   return (
     <section className="card">
@@ -273,13 +422,20 @@ function AdminPassword() {
 
 export default function AdminSettings() {
   useTitle('Settings')
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (!hash) return
+    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView(), 0)
+    return () => clearTimeout(t)
+  }, [hash])
   return (
     <>
-      <PageHeader title="Settings" subtitle="Team details, photos, scoring rules and the admin password." />
+      <PageHeader title="Settings" subtitle="Team details, photos, scoring rules, the score inbox and the admin password." />
       <div className="stack">
         <TeamInfo />
         <TeamPhotos />
         <ScoringRules />
+        <ScoreInbox />
         <AdminPassword />
       </div>
     </>

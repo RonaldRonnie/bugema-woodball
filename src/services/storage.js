@@ -3,6 +3,7 @@
 
 import { SCHEMA_VERSION, DEFAULT_SETTINGS, FAIRWAY_COUNT, TIE_BREAKER_OPTIONS } from '../data/defaults.js'
 import { isValidISODate } from '../lib/dates.js'
+import { isInboxUrl } from '../lib/inboxAddress.js'
 
 export const DATA_KEY = 'bu-woodball:data'
 export const META_KEY = 'bu-woodball:meta'
@@ -137,6 +138,8 @@ export function validateDataset(data) {
   }
   if (!data.settings || typeof data.settings !== 'object') err('"settings" is missing.')
   if (errors.length) return errors
+  const inbox = data.settings.scoreInboxUrl
+  if (inbox != null && inbox !== '' && !isInboxUrl(inbox)) err('The score inbox address is not a valid Apps Script web app address.')
 
   const uniqueIds = (list, label) => {
     const ids = new Set()

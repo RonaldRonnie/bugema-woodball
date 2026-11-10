@@ -158,3 +158,22 @@ describe('published photo paths', () => {
     expect(parseBackupText(text).imageFiles).toEqual({ a: 'data/images/img-a.jpg' })
   })
 })
+
+describe('reading the published results', () => {
+  it('asks the website itself before publishing, not the copy kept for offline use', async () => {
+    const { fetchPublishedSnapshot } = await import('../src/services/snapshot.js')
+    const calls = []
+    const original = globalThis.fetch
+    globalThis.fetch = async (url, init) => {
+      calls.push(`${/[?]fresh=\d+$/.test(url) ? 'fresh' : 'normal'}:${init?.cache}`)
+      return { ok: false }
+    }
+    try {
+      await fetchPublishedSnapshot()
+      await fetchPublishedSnapshot({ fresh: true })
+    } finally {
+      globalThis.fetch = original
+    }
+    expect(calls).toEqual(['normal:no-cache', 'fresh:no-store'])
+  })
+})

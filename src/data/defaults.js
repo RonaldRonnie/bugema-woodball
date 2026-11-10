@@ -40,4 +40,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   minRoundsForRanking: 1,
   // Upper bound accepted when entering a single fairway score.
   maxStrokesPerFairway: 15,
+  // Address of the coach's score inbox (a Google Apps Script web app) that
+  // players' phones send finished playing cards to. Empty = switched off.
+  scoreInboxUrl: '',
 })

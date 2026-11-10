@@ -26,10 +26,13 @@ export function imageFileUrls(imageFiles = {}) {
 /**
  * Returns the published snapshot, or null if none is published or reachable.
  * `displayImages` maps image IDs to something an <img> can show.
+ * `fresh: true` always asks the website (never the copy kept for offline use),
+ * e.g. before publishing over it.
  */
-export async function fetchPublishedSnapshot() {
+export async function fetchPublishedSnapshot({ fresh = false } = {}) {
   try {
-    const res = await fetch(snapshotUrl(), { cache: 'no-cache' })
+    // "?fresh=" also tells the offline support (src/offline/sw-template.js) not to answer from its copy.
+    const res = await fetch(fresh ? `${snapshotUrl()}?fresh=${Date.now()}` : snapshotUrl(), { cache: fresh ? 'no-store' : 'no-cache' })
     if (!res.ok) return null
     const type = res.headers.get('content-type') || ''
     if (type.includes('text/html')) return null // dev-server fallback page, not a snapshot

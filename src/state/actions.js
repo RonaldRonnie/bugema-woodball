@@ -9,6 +9,7 @@ import { FAIRWAY_COUNT, emptyFairways } from '../lib/scoring.js'
 import { TIE_BREAKER_OPTIONS } from '../data/defaults.js'
 import { MAX_STROKE_VALUE } from '../services/storage.js'
 import { seedCards, syncCards } from '../lib/cards.js'
+import { cleanInboxUrl, isInboxUrl } from '../lib/inboxAddress.js'
 
 export class ActionError extends Error {
   constructor(message) {
@@ -326,6 +327,18 @@ export function setPlayerRound(draft, matchId, roundId, playerId, values) {
   m.updatedAt = now()
 }
 
+/**
+ * Adds the scores from a player-submitted playing card (already checked in
+ * the score inbox). `players` is [{ playerId, fairways }]. Returns the count.
+ */
+export function acceptCardScores(draft, { matchId, roundId, players }) {
+  const m = find(draft.matches, matchId, 'Match')
+  find(m.rounds, roundId, 'Round')
+  if (!Array.isArray(players) || !players.length) throw new ActionError('This card has no scores to add.')
+  for (const p of players) setPlayerRound(draft, matchId, roundId, p.playerId, p.fairways)
+  return players.length
+}
+
 export function clearPlayerRound(draft, matchId, roundId, playerId) {
   const { m, r } = scoringContext(draft, matchId, roundId, playerId)
   delete r.scores[playerId]
@@ -368,6 +381,11 @@ export function updateSettings(draft, patch) {
       throw new ActionError(`Maximum strokes per fairway must be between 5 and ${MAX_STROKE_VALUE}.`)
     }
     s.maxStrokesPerFairway = n
+  }
+  if ('scoreInboxUrl' in patch) {
+    const url = cleanInboxUrl(patch.scoreInboxUrl)
+    if (url && !isInboxUrl(url)) throw new ActionError('The score inbox address must be the Apps Script web app address ending in /exec.')
+    s.scoreInboxUrl = url
   }
 }
 

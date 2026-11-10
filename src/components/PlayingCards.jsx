@@ -4,32 +4,9 @@ import { useToast } from '../state/UIContext.jsx'
 import Icon from './Icons.jsx'
 import { describeCards, cardsText } from '../lib/cards.js'
 import { formatDate } from '../lib/dates.js'
+import { copyText } from '../lib/clipboard.js'
 
 const canShare = () => typeof navigator !== 'undefined' && typeof navigator.share === 'function'
-
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    // Older browsers / non-secure pages: fall back to a hidden text box.
-    const box = document.createElement('textarea')
-    box.value = text
-    box.setAttribute('readonly', '')
-    box.style.position = 'fixed'
-    box.style.opacity = '0'
-    document.body.appendChild(box)
-    box.select()
-    let ok = false
-    try {
-      ok = document.execCommand('copy')
-    } catch {
-      ok = false
-    }
-    box.remove()
-    return ok
-  }
-}
 
 function PlayerLine({ entry, groupsById, link, mark, children }) {
   const group = groupsById[entry.groupId]
@@ -47,7 +24,7 @@ function PlayerLine({ entry, groupsById, link, mark, children }) {
 }
 
 /** Read-only cards for a match, with "find your name" and sharing. */
-export function MatchCards({ match, playersById, groupsById }) {
+export function MatchCards({ match, playersById, groupsById, scoreLink }) {
   const toast = useToast()
   const [query, setQuery] = useState('')
   const { cards, unplaced } = useMemo(() => describeCards(match, playersById), [match, playersById])
@@ -82,9 +59,16 @@ export function MatchCards({ match, playersById, groupsById }) {
             shares a scorecard
           </p>
         </div>
-        <button type="button" className="btn btn-sm" onClick={share}>
-          <Icon name="share" /> {canShare() ? 'Share' : 'Copy list'}
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          {scoreLink && (
+            <Link to={scoreLink} className="btn btn-sm btn-primary">
+              <Icon name="clipboard" /> Keep score
+            </Link>
+          )}
+          <button type="button" className="btn btn-sm" onClick={share}>
+            <Icon name="share" /> {canShare() ? 'Share' : 'Copy list'}
+          </button>
+        </div>
       </div>
       {cards.length > 2 && (
         <input

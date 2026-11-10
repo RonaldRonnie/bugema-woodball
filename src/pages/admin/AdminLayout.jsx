@@ -10,6 +10,7 @@ import { formatDateTime } from '../../lib/dates.js'
 const TABS = [
   { to: '/admin', label: 'Dashboard', end: true },
   { to: '/admin/matches', label: 'Matches & scores' },
+  { to: '/admin/inbox', label: 'Score inbox' },
   { to: '/admin/players', label: 'Players' },
   { to: '/admin/groups', label: 'Groups' },
   { to: '/reports', label: 'Reports' },

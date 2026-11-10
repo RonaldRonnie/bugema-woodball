@@ -18,9 +18,10 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 8. [Limitations of browser-based storage](#limitations-of-browser-based-storage)
 9. [Admin password and security](#admin-password-and-security)
 10. [Playing cards](#playing-cards)
-11. [How scoring works](#how-scoring-works)
-12. [Testing](#testing)
-13. [Project structure](#project-structure)
+11. [Players keep score on their phones](#players-keep-score-on-their-phones)
+12. [How scoring works](#how-scoring-works)
+13. [Testing](#testing)
+14. [Project structure](#project-structure)
 
 ---
 
@@ -31,6 +32,8 @@ It is a **completely static site**: React + Vite, no server, no database, no pai
 - **Player management**: register, edit, deactivate or delete players, move them between groups (one at a time or in bulk), upload photos, and search and filter. Every player has a unique internal ID.
 - **Match and score recording**: date, competitive match or practice, participating groups, line-up, any number of rounds, notes, and an automatic or manual result. Each round has **12 fairway score fields** per player, and totals are calculated automatically. Several matches and rounds can be recorded on the same day.
 - **Playing cards**: when a match is created, the line-up is seeded at random into cards of 4 — 2 players from one group and 1 from each other group. Once published, everyone can see who they are playing with on the match page, the home page and their own player page.
+- **Players keep score on their phones**: one player per card enters everyone's strokes after each fairway — it works without internet — and taps *Submit* at the end. The card lands in the coach's **Score inbox** (and in a Google Sheet, one row per player, downloadable as CSV); the coach checks it, accepts it and publishes.
+- **Works offline**: once a phone has opened the site with internet, the site and the published results still open without it.
 - **Mobile-friendly score entry**: player-by-player cards with an on-screen keypad and automatic advance to the next fairway, or a spreadsheet-style table on larger screens. Every value is saved as soon as it is entered.
 - **Points and leaderboard**: Win 3 · Draw 1 · Loss 0, with configurable tie-breakers. Editing or deleting results recalculates everything immediately.
 - **Statistics** for each player (matches, rounds, total strokes, average, best round, history, fairway-by-fairway scores) and each group, filtered by day, week, month, custom range or all time.
@@ -102,6 +105,7 @@ VITE_BASE_PATH=/bugema-woodball/ npm run build
    - **Playing cards** are seeded automatically below the line-up (see [Playing cards](#playing-cards)). Tap **Reshuffle** for a new draw, or use a player's *Card* menu to move them. Untick *Seed players into cards* if a session does not need cards.
    - **Publish** straight after creating the match so the players can see their cards before they play.
 3. **Enter scores**: tap a player, then tap the score for each fairway on the keypad. The cursor moves to the next fairway on its own; for a two-digit score such as 12, tap 1 then 2. The total updates as you go and every value is saved immediately. Use *Next player* to continue, and *Add round* for further rounds.
+   - **Or let the players keep score** (once the [score inbox](#players-keep-score-on-their-phones) is set up): one player per card scores on their phone and submits the card. Then open Admin → **Score inbox**, check each card and tap **Accept** (or **Accept all**), and publish from the same page.
 4. **Fix mistakes**: tap any fairway and enter the right number. Delete a whole round or match from the match screen, or clear one player's card with *Clear / absent*. Standings recalculate automatically.
 5. **Players and groups**: Admin → *Players* to register, edit, deactivate or delete players, add photos and move players between groups. Admin → *Groups* to manage groups.
 6. **Reports**: *Reports* → choose a period → download CSV or PDF.
@@ -189,6 +193,41 @@ A card is the group of players who go round the course together and share one sc
 - **Where players see them**: the match page lists every card, with a *Find your name* box and a *Share / Copy list* button for WhatsApp. The home page shows *Playing cards are out* for upcoming matches, and each player's page shows their card and who they play with.
 - **Scoring**: score entry lists players card by card, so each paper scorecard can be entered in one go. Cards do not affect results or points.
 
+## Players keep score on their phones
+
+One player per playing card keeps score for the whole card on their phone, the moment each fairway is finished. The card goes to the coach when it is submitted; nothing reaches the website until the coach accepts it and publishes.
+
+**For the player keeping score**
+
+1. Open the website **once with internet** on match day (before going out to the course). From then on it also opens without internet.
+2. Open the match → **Keep score** → choose your card, the round (if there is more than one) and your name → **Start keeping score**.
+3. After each fairway, enter everyone's strokes on the keypad. The app moves to the next player by itself (for 10–15 tap *1* then the second digit; for a score of 1, tap *1* then *Next player*). Every tap is saved on the phone straight away, so a dead screen, a closed browser or no signal loses nothing.
+4. After fairway 12, check the card and tap **Submit to the coach**. Without internet the button waits; the site shows a reminder on every page until the card is sent. Changed a score after sending? Send the card again — the coach gets the corrected copy.
+
+**For the coach**
+
+- Admin → **Score inbox** lists the cards sent in. Each shows every player's 12 fairways, who kept score, and how it compares with what is already entered: *New*, *Changes your entry* (the changed fairways are highlighted) or *Already entered*. Players no longer in the line-up, or with no scores, are skipped.
+- Tap **Accept** (or **Accept all**), then **Publish results now** on the same page. **Dismiss** removes a card you do not want; it can be brought back under *Handled cards*.
+- If a card is sent twice, only the newest copy counts. **Download CSV** gives every card sent, one row per player.
+
+**One-time set-up (about 10 minutes, on a computer)**
+
+The website itself cannot receive files, so the cards are collected by a small script in a Google Sheet in the coach's own Google account. The same steps are shown in Admin → Settings → *Score inbox*, with a button that copies the script.
+
+1. Sign in to Google and open [sheets.new](https://sheets.new) to create a blank spreadsheet. Name it “Woodball score inbox”.
+2. In the spreadsheet choose **Extensions → Apps Script**, delete the lines already there and paste the script from [`apps-script/score-inbox.gs`](apps-script/score-inbox.gs) (or use *Copy the inbox script* in Settings). Click **Save**.
+3. **Deploy → New deployment** → gear icon → **Web app**. Set **Execute as: Me** and **Who has access: Anyone**, then **Deploy**.
+4. Authorize access with your account. If Google says it hasn't verified the app, choose **Advanced → Go to … (unsafe) → Allow** — it is your own script, and it can only use this one spreadsheet.
+5. Copy the **Web app URL** (ends in `/exec`), paste it in Admin → Settings → *Score inbox* and click **Test and save**.
+6. **Publish the results.** Players' phones learn the inbox address from the published results.
+
+Each card is stored in the sheet's *Submissions* tab, one row per player with F1–F12 and the total (File → Download → CSV to keep a copy). If you later paste a newer version of the script, use **Deploy → Manage deployments → Edit → Version: New version** so the address stays the same.
+
+**Good to know**
+
+- Anyone who has the inbox address could send a card, which is why every card waits for the coach to accept it. The website only changes when the coach publishes.
+- A scorecard lives on the phone that kept it until it is submitted. Clearing the browser's data before submitting deletes it.
+
 ## How scoring works
 
 - A round has 12 fairways. **Total strokes** is the sum of the fairway scores, and fewer is better.
@@ -209,7 +248,7 @@ A card is the group of players who go round the course together and share one sc
 npm test
 ```
 
-Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, playing-card seeding (the 2 + 1 + 1 rule over hundreds of random line-ups), individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
+Automated tests (Vitest) cover the seed roster, stroke totals, match outcomes, points, tie-breakers, leaderboard recalculation after edits and deletes, playing-card seeding (the 2 + 1 + 1 rule over hundreds of random line-ups), the score inbox (the real Google Apps Script run against a stand-in spreadsheet, card checks and merging, phone scorecards), individual and group statistics, date filtering, player and group management, score validation, LocalStorage persistence and corruption recovery, storage-full handling, JSON backup and restore (including photos in IndexedDB), and CSV escaping and content.
 
 The GitHub Actions workflow runs these tests before every deployment, and a failing test stops the deploy.
 
@@ -220,7 +259,8 @@ The GitHub Actions workflow runs these tests before every deployment, and a fail
 ```
 src/
   data/          seed roster and default settings
-  lib/           pure logic: scoring, statistics, playing cards, dates, CSV, PDF, images,
+  lib/           pure logic: scoring, statistics, playing cards, score inbox, phone scorecards,
+                 dates, CSV, PDF, images,
                  auth.js (admin password fingerprint)
   services/      storage.js (LocalStorage persistence, validation, migrations),
                  imageStore.js (IndexedDB photos), backup.js, snapshot.js,
@@ -228,7 +268,10 @@ src/
   state/         DataContext (safe commits), actions (data operations),
                  AdminContext, UI (toasts, confirm dialog), image hooks
   components/    layout, charts, tables, filters, photo picker
-  pages/         public pages; pages/admin/ for the administration area
+  pages/         public pages (KeepScore.jsx: scoring on a player's phone);
+                 pages/admin/ for the administration area (AdminInbox.jsx: score inbox)
+  offline/       sw-template.js — offline support, turned into dist/sw.js at build time
+apps-script/     score-inbox.gs — the Google Sheet score inbox players submit cards to
 public/data/     published results (snapshot.json) and photos (images/)
 scripts/         set-admin-password.mjs
 tests/           Vitest unit and integration tests

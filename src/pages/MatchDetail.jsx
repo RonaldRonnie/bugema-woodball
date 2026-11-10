@@ -26,7 +26,9 @@ export default function MatchDetail() {
   const rounds = [...match.rounds].sort((a, b) => a.number - b.number)
   // Before play starts the cards are what people come to see, so show them first.
   const started = match.rounds.some((r) => Object.keys(r.scores).length > 0)
-  const cards = <MatchCards match={match} playersById={playersById} groupsById={groupsById} />
+  // Players keep score for their card on a phone once the coach has set up the score inbox.
+  const scoreLink = match.cards?.length && (data.settings.scoreInboxUrl || isAdmin) ? `/matches/${match.id}/score` : null
+  const cards = <MatchCards match={match} playersById={playersById} groupsById={groupsById} scoreLink={scoreLink} />
 
   return (
     <>
